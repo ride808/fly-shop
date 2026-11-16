@@ -4,9 +4,13 @@
     ".write": false,
     "shops": {
       "$code": {
-        ".read": true,
-        ".write": true,
-        ".validate": "newData.hasChildren(['rev', 'data'])"
+        ".read": "$code.length >= 12",
+        ".write": "$code.length >= 12",
+        ".validate": "newData.hasChildren(['rev', 'data']) && newData.child('data').isString() && newData.child('data').val().length < 300000",
+        "rev": { ".validate": "newData.isNumber()" },
+        "updatedAt": { ".validate": "newData.isNumber()" },
+        "data": { ".validate": "newData.isString()" },
+        "$other": { ".validate": false }
       }
     }
   }
