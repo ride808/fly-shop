@@ -141,6 +141,8 @@ function fly(id){return S.flies.filter(function(f){return f.id===id})[0]}
 function unit(m){return m.packCost/m.packQty}
 function canTie(f){return f.canTie!==false}
 function minMargin(){return S.minMargin==null?50:S.minMargin}
+function orderRecipe(o,f){return o.recipe||f.recipe}
+function orderCost(o,f){return o.cost!=null?o.cost:flyCost(f)*o.qty}
 function minPrice(f){return flyCost(f)/(1-minMargin()/100)}
 function marginOf(price,cost){return price>0?(price-cost)/price*100:0}
 function liveFlies(){return S.flies.filter(function(f){return !f.deleted})}
@@ -163,6 +165,7 @@ function commit(msg){toast=msg||'';save();render()}
 function tieOrder(id){
   var o=S.orders.filter(function(x){return x.id===id})[0],f=fly(o.fly),short=[];
   f.recipe.forEach(function(r){var m=mat(r[0]),use=r[1]*o.qty;if(m.stock<use)short.push(m.name);m.stock=Math.max(0,m.stock-use)});
+  o.recipe=f.recipe.map(function(r){return [r[0],r[1]]});o.cost=flyCost(f)*o.qty;
   o.status='tied';
   commit(short.length?'Marked tied. You ran short on: '+short.join(', ')+'. Count your tying materials.':'Nice work! Supplies taken from your tying materials.');
 }
@@ -170,7 +173,7 @@ function payOrder(id){
   var o=S.orders.filter(function(x){return x.id===id})[0],f=fly(o.fly);
   var amt=parseFloat(document.getElementById('amt').value);
   if(isNaN(amt)||amt<0){return}
-  var cost=flyCost(f)*o.qty,profit=amt-cost;
+  var cost=orderCost(o,f),profit=amt-cost;
   var sv=0;
   o.status='paid';o.paid=amt;
   var note=o.qty+' '+f.name;
@@ -222,7 +225,8 @@ function saveOrder(id){
 function deleteOrder(id){snapshotUndo('before deleting an order');S.orders=S.orders.filter(function(x){return x.id!==id});closeModal();commit('Order deleted.')}
 function undoTied(id){
   var o=S.orders.filter(function(x){return x.id===id})[0],f=fly(o.fly);
-  f.recipe.forEach(function(r){var m=mat(r[0]);if(m)m.stock+=r[1]*o.qty});
+  orderRecipe(o,f).forEach(function(r){var m=mat(r[0]);if(m)m.stock+=r[1]*o.qty});
+  delete o.recipe;delete o.cost;
   o.status='open';closeModal();commit('Back to "To tie". Supplies put back in your tying materials.');
 }
 function addOrder(){
@@ -289,6 +293,14 @@ function payLinkCard(){
    '<div class="alert" id="pay-err" style="display:none"></div></div>';
 }
 function copyMenu(){var t=document.getElementById('menu-text');t.select();try{navigator.clipboard.writeText(t.value)}catch(e){}}
+function recipeModal(id){
+  var f=fly(id);if(!f)return;
+  var rows=f.recipe.map(function(r){var m=mat(r[0]);if(!m)return '';
+    return '<tr><td>'+esc(m.name)+'<div class="muted">'+esc(m.cat)+'</div></td><td><b>'+(Math.round(r[1]*100)/100)+'</b></td><td class="muted">'+(Math.round(r[1]*12*100)/100)+'</td></tr>'}).join('');
+  openModal('<h3>'+esc(f.name)+'</h3>'+photoImg(f)+
+   '<div class="card"><table><tr><td class="muted">Material</td><td class="muted">One fly</td><td class="muted">A dozen</td></tr>'+rows+'</table></div>'+
+   '<button class="alt wide" onclick="closeModal()">Close</button>');
+}
 function menuModal(){
   var can=liveFlies().filter(canTie),lrn=liveFlies().filter(function(f){return !canTie(f)});
   var h='<h3 style="font-size:26px">Chase\'s Fly Shop</h3><div class="muted">Hand-tied flies. Order by the dozen.</div>';
@@ -468,6 +480,7 @@ function flyModal(id,draft){
    '<div><label for="f-price">What the shop pays per fly</label><input id="f-price" type="number" inputmode="decimal" step="0.05" value="'+esc(priceV)+'"></div>'+
    '<div><label for="f-can">Can you tie this fly yet?</label><select id="f-can"><option value="yes"'+(canV==='yes'?' selected':'')+'>Yes, I can tie it</option><option value="no"'+(canV==='no'?' selected':'')+'>Not yet, still learning</option></select></div>'+
    '<div><label for="f-photo">Photo of the fly</label><input id="f-photo" type="file" accept="image/*" onchange="photoPick(this,'+fid+')"><div id="f-photo-prev" class="stack" style="margin-top:8px">'+photoPrev(f)+'</div></div>'+
+   (f?'<div class="muted">If you change this recipe, orders that are already tied or paid keep the recipe and cost they were tied with. Orders still waiting to be tied will use the new recipe.</div>':'')+
    '<div><b>What goes into ONE fly?</b><div class="muted">Type how many of each. Leave it blank if the fly does not use it. Materials you fill in always stay on screen.</div></div>'+
    '<input id="fq" type="search" aria-label="Find a material" placeholder="Find a material" value="'+esc(flyQ)+'" oninput="flyQ=this.value;applyFlyFilter()">'+
    '<div class="chips" id="fchips" role="group" aria-label="Filter by type"></div>'+
@@ -555,7 +568,7 @@ function payWarn(id){
   var o=S.orders.filter(function(x){return x.id===id})[0],f=fly(o.fly);
   var amt=parseFloat(document.getElementById('amt').value),w=document.getElementById('pay-warn');
   if(!w)return;
-  var cost=flyCost(f)*o.qty;
+  var cost=orderCost(o,f);
   if(!isNaN(amt)&&amt>=0&&marginOf(amt,cost)<minMargin()-0.0001){
     w.textContent='Your lowest price is '+$(floorPrice(f))+' each.';
     w.style.display='block';
@@ -607,7 +620,7 @@ function resetModal(){
 /* ---------- screens ---------- */
 
 /* ---------- Dad's corner (PIN) ---------- */
-var APP_VERSION='2026-11-16.13';
+var APP_VERSION='2026-11-16.14';
 var officeTab='money',dadUnlocked=false, PIN_KEY='chase-fly-shop-pin-v1';
 function getPin(){try{return localStorage.getItem(PIN_KEY)}catch(e){return null}}
 function pinFields(two){
@@ -741,7 +754,7 @@ function fliesView(){
   list.forEach(function(f){
     h+='<div class="card stack">'+photoImg(f)+'<div class="row"><b style="font-size:19px">'+esc(f.name)+'</b><span class="pill '+(canTie(f)?'paid':'')+'">'+(canTie(f)?'I can tie this':'Still learning')+'</span></div>'+
       '<div class="row"><span class="muted">Shop pays</span><b>'+$(f.price)+' each</b></div><div class="muted">'+$(f.price*12)+' per dozen</div>'+
-      '<button class="alt small" onclick="toggleCan(\''+f.id+'\')">'+(canTie(f)?'Move to still learning':'I can tie this now')+'</button></div>';
+      '<div class="row"><button class="small" onclick="recipeModal(\''+f.id+'\')">See recipe</button><button class="alt small" onclick="toggleCan(\''+f.id+'\')">'+(canTie(f)?'Move to still learning':'I can tie this now')+'</button></div></div>';
   });
   return h;
 }
@@ -774,7 +787,7 @@ function moneyContent(){
   var paid=S.orders.filter(function(o){return o.status==='paid'&&fly(o.fly)}).slice(-6).reverse();
   h+='<h2>What each order kept</h2>';
   if(!paid.length)h+='<div class="card muted">Nothing yet. Paid orders show up here.</div>';
-  else h+='<div class="card"><table>'+paid.map(function(o){var f=fly(o.fly),k=o.paid-flyCost(f)*o.qty;return '<tr><td>'+o.qty+' '+esc(f.name)+'<div class="muted">'+esc(o.shop)+' &middot; paid '+$(o.paid)+' &middot; '+Math.round(marginOf(o.paid,flyCost(f)*o.qty))+'% kept</div></td><td style="color:'+(k<0?'var(--warn)':'var(--good)')+'">'+$(k)+'</td></tr>'}).join('')+'</table></div>';
+  else h+='<div class="card"><table>'+paid.map(function(o){var f=fly(o.fly),oc=orderCost(o,f),k=o.paid-oc;return '<tr><td>'+o.qty+' '+esc(f.name)+'<div class="muted">'+esc(o.shop)+' &middot; paid '+$(o.paid)+' &middot; '+Math.round(marginOf(o.paid,oc))+'% kept</div></td><td style="color:'+(k<0?'var(--warn)':'var(--good)')+'">'+$(k)+'</td></tr>'}).join('')+'</table></div>';
   var rows=S.ledger.slice(-8).reverse();
   h+='<h2>Money history</h2>';
   if(!rows.length){h+='<div class="card muted">Nothing yet. When a shop pays you, the money lands in the jars.</div>'}
