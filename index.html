@@ -68,6 +68,7 @@ label{display:block;font-weight:800;font-size:15px;margin-bottom:4px}
 .bar{height:14px;border-radius:99px;background:var(--line);overflow:hidden}
 .bar i{display:block;height:100%;background:var(--good);border-radius:99px}
 .bar.low i{background:var(--warn)}
+.fphoto{width:100%;max-height:200px;object-fit:cover;border-radius:12px;display:block}
 .alert{background:var(--warn-bg);color:var(--warn);border-radius:12px;padding:10px 12px;font-weight:700;font-size:15px}
 .okmsg{background:var(--good-bg);color:var(--good);border-radius:12px;padding:10px 12px;font-weight:700;font-size:15px}
 nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);display:flex;justify-content:center;padding-bottom:env(safe-area-inset-bottom)}
@@ -184,10 +185,31 @@ function buyPack(id){
   addLedger('restock',-m.packCost,'Bought '+m.name);
   commit('Restocked '+m.name+'. Paid '+$(m.packCost)+' from the Restock jar.');
 }
+function orderPrice(o){if(o.price!=null)return o.price;var f=fly(o.fly);return f?f.price:0}
+function floorPrice(f){return Math.ceil(minPrice(f)*20-0.0001)/20}
+function dealWarnText(f,price){
+  var c=flyCost(f);
+  if(price<c-0.0001||marginOf(price,c)<minMargin()-0.0001)return 'Your lowest price is '+$(floorPrice(f))+' each.';
+  return '';
+}
+function dealWarn(flyId,priceId,warnId){
+  var w=document.getElementById(warnId),p=document.getElementById(priceId);
+  if(!w||!p)return;
+  var t=dealWarnText(fly(flyId),parseFloat(p.value));
+  w.textContent=t;w.style.display=t?'block':'none';
+}
+function flyChanged(selId,priceId,warnId){
+  var f=fly(document.getElementById(selId).value);
+  if(f)document.getElementById(priceId).value=f.price.toFixed(2);
+  dealWarn(f?f.id:'',priceId,warnId);
+}
 function saveOrder(id){
   var o=S.orders.filter(function(x){return x.id===id})[0];
   var shop=document.getElementById('e-shop').value.trim()||'Fly shop';
   var date=document.getElementById('e-date').value||o.date;
+  var pr=parseFloat(document.getElementById('e-price').value);
+  if(isNaN(pr)||pr<0)return;
+  o.price=pr;
   if(o.status==='open'){
     var qty=parseInt(document.getElementById('e-qty').value,10);
     if(!(qty>0))return;
@@ -204,9 +226,10 @@ function undoTied(id){
 function addOrder(){
   var shop=document.getElementById('o-shop').value.trim()||'Fly shop';
   var qty=parseInt(document.getElementById('o-qty').value,10);
-  if(!(qty>0)||!document.getElementById('o-fly').value)return;
+  var price=parseFloat(document.getElementById('o-price').value);
+  if(!(qty>0)||!document.getElementById('o-fly').value||isNaN(price)||price<0)return;
   S.shopName=shop;
-  S.orders.unshift({id:'O'+(S.nextId++),shop:shop,fly:document.getElementById('o-fly').value,qty:qty,status:'open',date:today(),paid:0});
+  S.orders.unshift({id:'O'+(S.nextId++),shop:shop,fly:document.getElementById('o-fly').value,qty:qty,price:price,status:'open',date:today(),paid:0});
   closeModal();commit('Order added.');
 }
 function spendMoney(){
@@ -251,13 +274,30 @@ function menuModal(){
   var h='<h3 style="font-size:26px">Chase\'s Fly Shop</h3><div class="muted">Hand-tied flies. Order by the dozen.</div>';
   if(!can.length)h+='<div class="card muted">No flies on the menu yet. Mark a fly as one you can tie on the Flies tab.</div>';
   can.forEach(function(f){
-    h+='<div class="card"><div class="row"><b style="font-size:19px">'+esc(f.name)+'</b><span class="big" style="font-size:22px">'+$(f.price)+'</span></div><div class="muted">'+$(f.price*12)+' per dozen</div></div>';
+    h+='<div class="card stack">'+photoImg(f)+'<div class="row"><b style="font-size:19px">'+esc(f.name)+'</b><span class="big" style="font-size:22px">'+$(f.price)+'</span></div><div class="muted">'+$(f.price*12)+' per dozen</div></div>';
   });
   if(lrn.length)h+='<div class="muted"><b>Coming soon:</b> '+lrn.map(function(f){return esc(f.name)}).join(', ')+'</div>';
   h+='<textarea id="menu-text" readonly style="position:absolute;left:-9999px">'+esc(menuText())+'</textarea>'+
      '<button class="wide" onclick="copyMenu()">Copy menu as text</button><button class="alt wide" onclick="closeModal()">Close</button>';
   openModal(h);
 }
+function playHTML(f,price){
+  var c=flyCost(f),keep=price-c,mg=marginOf(price,c),mm=minMargin(),ok=mg>=mm-0.0001,pct=S.savingsPct||0;
+  var dz=12,earn=price*dz,sup=c*dz,prof=keep*dz,sav=prof>0?prof*pct/100:0,spend=prof>0?prof-sav:prof;
+  return '<div class="row"><span class="muted">You keep per fly</span><b style="color:'+(keep>=0?'var(--good)':'var(--warn)')+'">'+$(keep)+'</b></div>'+
+   '<div class="row"><span class="muted">Share of the sale you keep</span><b style="color:'+(ok?'var(--good)':'var(--warn)')+'">'+Math.round(mg)+'% <span class="muted">(want '+mm+'%+)</span></b></div>'+
+   (ok?'':'<div class="alert">'+(keep<0?'That is less than your supplies cost. You lose money on every fly. ':'Below your minimum. ')+'Charge at least '+$(minPrice(f))+' to keep '+mm+'%.</div>')+
+   '<div class="muted"><b>If you sell a dozen at this price</b></div>'+
+   '<div class="row"><span class="muted">Shop pays you</span><b>'+$(earn)+'</b></div>'+
+   '<div class="row"><span class="muted">Back to Restock (supplies)</span><b>'+$(sup)+'</b></div>'+
+   '<div class="row"><span class="muted">Into Savings ('+pct+'% of profit)</span><b>'+$(sav)+'</b></div>'+
+   '<div class="row"><span class="muted">Yours to spend</span><b>'+$(spend)+'</b></div>';
+}
+function playPrice(id,v){var f=fly(id),el=document.getElementById('pl-'+id);v=parseFloat(v);if(!f||!el)return;el.innerHTML=isNaN(v)||v<0?'<div class="muted">Type a price to see what it does.</div>':playHTML(f,v)}
+function refreshFly(f){var el=document.getElementById('pl-'+f.id),sp=document.getElementById('sup-'+f.id),pi=document.getElementById('pr-'+f.id),pv=pi?parseFloat(pi.value):f.price;if(sp)sp.textContent=$(flyCost(f));if(el)el.innerHTML=isNaN(pv)||pv<0?'':playHTML(f,pv)}
+function liveQty(fid,mid,v){var f=fly(fid);v=parseFloat(v);if(!f||isNaN(v)||v<0)return;f.recipe.forEach(function(r){if(r[0]===mid)r[1]=v});refreshFly(f)}
+function liveMargin(v){v=parseFloat(v);if(isNaN(v)||v<0||v>90)return;S.minMargin=v;liveFlies().forEach(refreshFly)}
+function setToMin(id){var f=fly(id);f.price=Math.ceil(minPrice(f)*20-0.0001)/20;save();render()}
 function setPrice(id,v){var f=fly(id);v=parseFloat(v);if(!isNaN(v)&&v>=0){f.price=v;save();render()}}
 function setQty(fid,mid,v){var f=fly(fid);v=parseFloat(v);if(isNaN(v)||v<0)return;f.recipe.forEach(function(r){if(r[0]===mid)r[1]=v});save();render()}
 function setMinMargin(v){v=parseFloat(v);if(!isNaN(v)&&v>=0&&v<=90){S.minMargin=v;save();render()}}
@@ -283,8 +323,8 @@ function saveFly(id){
   var rec=[];var can=document.getElementById('f-can').value==='yes';
   S.materials.forEach(function(m){var q=parseFloat(document.getElementById('rq-'+m.id).value);if(q>0)rec.push([m.id,q])});
   if(!name||isNaN(price)||price<0||!rec.length){document.getElementById('f-err').textContent='Add a name, a price, and at least one material.';return}
-  if(id){var f=fly(id);f.name=name;f.price=price;f.recipe=rec;f.canTie=can;closeModal();commit('Saved '+name+'.')}
-  else{S.flies.push({id:'F'+(S.nextId++),name:name,price:price,recipe:rec,canTie:can});closeModal();commit(can?'Added '+name+'. You can take orders for it.':'Added '+name+' as a fly you are still learning.')}
+  if(id){var f=fly(id);f.name=name;f.price=price;f.recipe=rec;f.canTie=can;if(pendPhoto!==null){if(pendPhoto)f.photo=pendPhoto;else delete f.photo}closeModal();commit('Saved '+name+'.')}
+  else{var nf={id:'F'+(S.nextId++),name:name,price:price,recipe:rec,canTie:can};if(pendPhoto)nf.photo=pendPhoto;S.flies.push(nf);closeModal();commit(can?'Added '+name+'. You can take orders for it.':'Added '+name+' as a fly you are still learning.')}
 }
 
 
@@ -365,6 +405,35 @@ function addMaterialInline(fid){
   save();
   flyModal(fid,draft);
 }
+var pendPhoto=null;
+function photoImg(f,cls){var u=f&&f.photo;return (u&&typeof u==='string'&&u.indexOf('data:image/')===0)?'<img class="'+(cls||'fphoto')+'" alt="Photo of '+esc(f.name)+'" src="'+u+'">':''}
+function photoPrev(f){var u=pendPhoto!==null?pendPhoto:(f&&f.photo)||'';return (u&&u.indexOf('data:image/')===0)?'<img class="fphoto" alt="Fly photo" src="'+u+'"><button class="alt small" onclick="photoRemove()">Remove photo</button>':'<div class="muted">No photo yet.</div>'}
+function photoShow(id){var el=document.getElementById('f-photo-prev');if(el)el.innerHTML=photoPrev(id?fly(id):null)}
+function photoRemove(){pendPhoto='';var el=document.getElementById('f-photo-prev');if(el)el.innerHTML='<div class="muted">No photo yet.</div>'}
+function photoPick(inp,id){
+  var file=inp.files&&inp.files[0];if(!file)return;
+  var er=document.getElementById('f-err');
+  var fail=function(){if(er){er.textContent='That photo would not load. Try another one.';er.style.display='block'}};
+  try{
+    var rd=new FileReader();
+    rd.onerror=fail;
+    rd.onload=function(){
+      var im=new Image();im.onerror=fail;
+      im.onload=function(){
+        try{
+          var max=480,w=im.width,h=im.height,k=Math.min(1,max/Math.max(w,h));
+          var cv=document.createElement('canvas');cv.width=Math.max(1,Math.round(w*k));cv.height=Math.max(1,Math.round(h*k));
+          cv.getContext('2d').drawImage(im,0,0,cv.width,cv.height);
+          pendPhoto=cv.toDataURL('image/jpeg',0.72);
+          if(er)er.style.display='none';
+          photoShow(id);
+        }catch(e){fail()}
+      };
+      im.src=rd.result;
+    };
+    rd.readAsDataURL(file);
+  }catch(e){fail()}
+}
 function flyModal(id,draft){
   var f=id?fly(id):null;
   var qtyOf={};
@@ -375,11 +444,12 @@ function flyModal(id,draft){
   var cats=['Hook','Thread','Bead','Dubbing','Wire','Feather','Fur','Other'];
   S.materials.forEach(function(x){if(cats.indexOf(x.cat)<0)cats.push(x.cat)});
   var fid=id?'\''+id+'\'':'null';
-  if(!draft){flyCats=[];flyQ=''}
+  if(!draft){flyCats=[];flyQ='';pendPhoto=null}
   openModal('<h3>'+(f?'Edit fly':'New fly')+'</h3>'+
    '<div><label for="f-name">Fly name</label><input id="f-name" value="'+esc(nameV)+'" placeholder="Example: Zebra Midge #18"></div>'+
    '<div><label for="f-price">What the shop pays per fly</label><input id="f-price" type="number" inputmode="decimal" step="0.05" value="'+esc(priceV)+'"></div>'+
    '<div><label for="f-can">Can you tie this fly yet?</label><select id="f-can"><option value="yes"'+(canV==='yes'?' selected':'')+'>Yes, I can tie it</option><option value="no"'+(canV==='no'?' selected':'')+'>Not yet, still learning</option></select></div>'+
+   '<div><label for="f-photo">Photo of the fly</label><input id="f-photo" type="file" accept="image/*" onchange="photoPick(this,'+fid+')"><div id="f-photo-prev" class="stack" style="margin-top:8px">'+photoPrev(f)+'</div></div>'+
    '<div><b>What goes into ONE fly?</b><div class="muted">Type how many of each. Leave it blank if the fly does not use it. Materials you fill in always stay on screen.</div></div>'+
    '<input id="fq" type="search" aria-label="Find a material" placeholder="Find a material" value="'+esc(flyQ)+'" oninput="flyQ=this.value;applyFlyFilter()">'+
    '<div class="chips" id="fchips" role="group" aria-label="Filter by type"></div>'+
@@ -421,26 +491,33 @@ function closeModal(){document.getElementById('modal').innerHTML=''}
 function newOrderModal(){
   openModal('<h3>New order</h3>'+
    '<div><label for="o-shop">Which shop?</label><input id="o-shop" value="'+esc(S.shopName)+'"></div>'+
-   '<div><label for="o-fly">Which fly?</label><select id="o-fly">'+tieable().map(function(f){return '<option value="'+f.id+'">'+esc(f.name)+'</option>'}).join('')+'</select><div class="muted">Only flies you can tie are listed. Mark a fly as tied on the Flies tab to add it here.</div></div>'+
+   '<div><label for="o-fly">Which fly?</label><select id="o-fly" onchange="flyChanged(\'o-fly\',\'o-price\',\'o-warn\')">'+tieable().map(function(f){return '<option value="'+f.id+'">'+esc(f.name)+'</option>'}).join('')+'</select><div class="muted">Only flies you can tie are listed. Mark a fly as tied on the Flies tab to add it here.</div></div>'+
    '<div><label for="o-qty">How many?</label><input id="o-qty" type="number" inputmode="numeric" value="12" min="1"></div>'+
+   '<div><label for="o-price">Price per fly you agreed on</label><input id="o-price" type="number" inputmode="decimal" step="0.05" value="'+(tieable()[0]?tieable()[0].price.toFixed(2):'')+'" oninput="dealWarn(document.getElementById(\'o-fly\').value,\'o-price\',\'o-warn\')"><div class="muted">It starts at your usual price. Change it to whatever the shop and you agreed.</div></div>'+
+   '<div class="alert" id="o-warn" style="display:none"></div>'+
    '<button class="wide" onclick="addOrder()">Add order</button><button class="alt wide" onclick="closeModal()">Cancel</button>');
+  var first=tieable()[0];if(first)dealWarn(first.id,'o-price','o-warn');
 }
 function orderModal(id){
   var o=S.orders.filter(function(x){return x.id===id})[0],f=fly(o.fly);
   var h='<h3>Edit order</h3>'+
    '<div><label for="e-shop">Which shop?</label><input id="e-shop" value="'+esc(o.shop)+'"></div>';
   if(o.status==='open'){
-    h+='<div><label for="e-fly">Which fly?</label><select id="e-fly">'+tieable(o.fly).map(function(x){return '<option value="'+x.id+'"'+(x.id===o.fly?' selected':'')+'>'+esc(x.name)+'</option>'}).join('')+'</select></div>'+
+    h+='<div><label for="e-fly">Which fly?</label><select id="e-fly" onchange="flyChanged(\'e-fly\',\'e-price\',\'e-warn\')">'+tieable(o.fly).map(function(x){return '<option value="'+x.id+'"'+(x.id===o.fly?' selected':'')+'>'+esc(x.name)+'</option>'}).join('')+'</select></div>'+
        '<div><label for="e-qty">How many?</label><input id="e-qty" type="number" inputmode="numeric" min="1" value="'+o.qty+'"></div>';
   }else{
     h+='<div class="muted">'+o.qty+' '+esc(f.name)+' are already tied, so the fly and number are locked. Use "Put back" if you tied the wrong thing.</div>';
   }
-  h+='<div><label for="e-date">Date</label><input id="e-date" type="date" value="'+esc(o.date)+'"></div>'+
+  var flySrc=o.status==='open'?"document.getElementById('e-fly').value":"'"+o.fly+"'";
+  h+='<div><label for="e-price">Price per fly</label><input id="e-price" type="number" inputmode="decimal" step="0.05" value="'+orderPrice(o).toFixed(2)+'" oninput="dealWarn('+flySrc+',\'e-price\',\'e-warn\')"></div>'+
+     '<div class="alert" id="e-warn" style="display:none"></div>'+
+     '<div><label for="e-date">Date</label><input id="e-date" type="date" value="'+esc(o.date)+'"></div>'+
      '<button class="wide" onclick="saveOrder(\''+id+'\')">Save</button>';
   if(o.status==='tied')h+='<button class="alt wide" onclick="putBackModal(\''+id+'\')">Put back (not tied yet)</button>';
   if(o.status==='open')h+='<button class="alt wide" onclick="delModal(\''+id+'\')">Delete order</button>';
   h+='<button class="alt wide" onclick="closeModal()">Cancel</button>';
   openModal(h);
+  dealWarn(o.fly,'e-price','e-warn');
 }
 function delModal(id){
   openModal('<h3>Delete this order?</h3><div class="muted">No materials have been used yet, so this just removes it from the list.</div>'+
@@ -448,9 +525,9 @@ function delModal(id){
 }
 function payModal(id){
   var o=S.orders.filter(function(x){return x.id===id})[0],f=fly(o.fly);
-  var cost=flyCost(f)*o.qty,exp=f.price*o.qty;
+  var cost=flyCost(f)*o.qty,exp=orderPrice(o)*o.qty;
   openModal('<h3>Got paid for '+o.qty+' '+esc(f.name)+'</h3>'+
-   '<div class="muted">Supplies for this order cost '+$(cost)+'. That goes into the Restock jar first.</div>'+
+   '<div class="muted">The money gets split into your jars. You can see them in the Office.</div>'+
    '<div><label for="amt">How much did the shop pay?</label><input id="amt" type="number" inputmode="decimal" step="0.01" value="'+exp.toFixed(2)+'" oninput="payWarn(\''+id+'\')"></div>'+
    '<div class="alert" id="pay-warn" style="display:none"></div>'+
    '<button class="wide" onclick="payOrder(\''+id+'\')">Split it into the jars</button><button class="alt wide" onclick="closeModal()">Cancel</button>');
@@ -462,7 +539,7 @@ function payWarn(id){
   if(!w)return;
   var cost=flyCost(f)*o.qty;
   if(!isNaN(amt)&&amt>=0&&marginOf(amt,cost)<minMargin()-0.0001){
-    w.textContent=amt<=cost?'That is less than your supplies cost ('+$(cost)+'). You lose money on this order.':'You keep only '+Math.round(marginOf(amt,cost))+'% of this sale. Your minimum is '+minMargin()+'%. Next time, ask for at least '+$(minPrice(f)*o.qty)+' for this order.';
+    w.textContent='Your lowest price is '+$(floorPrice(f))+' each.';
     w.style.display='block';
   }else{w.textContent='';w.style.display='none'}
 }
@@ -492,7 +569,7 @@ function restoreBk(){
     if(!d.materials||!d.flies||!d.orders||!d.ledger)throw 0;
     pendingRestore=d;
     typedConfirmModal('Replace everything with this backup?',
-      'Restoring replaces ALL orders, materials, flies, and money'+(sync?' on this device and on every device that syncs with it':' on this device')+'. You can undo it afterward in Shop Settings.',
+      'Restoring replaces ALL orders, materials, flies, and money'+(sync?' on this device and on every device that syncs with it':' on this device')+'. You can undo it afterward in the Office (Settings).',
       'RESTORE','Yes, restore the backup','applyRestore()');
   }catch(e){var t=document.getElementById('rs');t.value='';t.placeholder='That did not look like a backup. Paste the whole text.'}
 }
@@ -500,19 +577,20 @@ function applyRestore(){
   if(!pendingRestore)return;
   snapshotUndo('before restoring a backup');
   var d=pendingRestore;pendingRestore=null;
-  d.rev=(S.rev||0)+1;S=d;closeModal();commit('Backup restored. You can undo this in Shop Settings.');
+  d.rev=(S.rev||0)+1;S=d;closeModal();commit('Backup restored. You can undo this in the Office (Settings).');
 }
-function resetAll(){snapshotUndo('before erasing everything');var r=S.rev||0;S=defaults();S.rev=r+1;closeModal();commit('Fresh start. You can undo this in Shop Settings.')}
+function resetAll(){snapshotUndo('before erasing everything');var r=S.rev||0;S=defaults();S.rev=r+1;closeModal();commit('Fresh start. You can undo this in the Office (Settings).')}
 function resetModal(){
   typedConfirmModal('Erase the whole shop?',
-    'This erases ALL orders, money, materials, and flies'+(sync?' on this device and on every device that syncs with it':' on this device')+'. You can undo it afterward in Shop Settings.',
+    'This erases ALL orders, money, materials, and flies'+(sync?' on this device and on every device that syncs with it':' on this device')+'. You can undo it afterward in the Office (Settings).',
     'ERASE','Yes, erase everything','resetAll()');
 }
 
 /* ---------- screens ---------- */
 
 /* ---------- Dad's corner (PIN) ---------- */
-var dadUnlocked=false, PIN_KEY='chase-fly-shop-pin-v1';
+var APP_VERSION='2026-11-16.10';
+var officeTab='money',dadUnlocked=false, PIN_KEY='chase-fly-shop-pin-v1';
 function getPin(){try{return localStorage.getItem(PIN_KEY)}catch(e){return null}}
 function pinFields(two){
   return '<div><label for="pin1">'+(two?'New PIN (4 digits)':'PIN')+'</label><input id="pin1" type="password" inputmode="numeric" maxlength="4" autocomplete="off"></div>'+
@@ -522,14 +600,14 @@ function pinFields(two){
 function pinErr(m){var e=document.getElementById('pin-err');if(e){e.textContent=m;e.style.display='block'}}
 function dadView(){
   if(dadUnlocked){
-    return '<div class="row"><h2 style="margin:0">Shop Settings</h2><button class="alt small" onclick="lockDad()">Lock</button></div>'+undoCard()+dadContent()+
+    return '<div class="row"><h2 style="margin:0">Office</h2><button class="alt small" onclick="lockDad()">Lock</button></div>'+'<div class="chips" role="group" aria-label="Office section">'+[['money','Money'],['settings','Settings']].map(function(c){return '<button class="chip" aria-pressed="'+(officeTab===c[0])+'" onclick="officeTab=\''+c[0]+'\';render();window.scrollTo(0,0)">'+c[1]+'</button>'}).join('')+'</div>'+(officeTab==='money'?moneyContent():undoCard()+dadContent())+
       '<button class="alt wide" onclick="pinModal()">Change PIN</button>';
   }
   if(!getPin()){
-    return '<div class="card stack"><h2 style="margin:0">Shop Settings</h2><div class="muted">Recipes, prices, sync, and backups live here. Pick a 4-digit PIN to keep these settings safe from accidental taps.</div>'+
+    return '<div class="card stack"><h2 style="margin:0">Office</h2><div class="muted">Money, recipes, prices, sync, and backups live here. Pick a 4-digit PIN to keep these settings safe from accidental taps.</div>'+
       pinFields(true)+'<button class="wide" onclick="setPin()">Save PIN</button></div>';
   }
-  return '<div class="card stack"><h2 style="margin:0">Shop Settings</h2><div class="muted">Enter the PIN to open the settings.</div>'+pinFields(false)+
+  return '<div class="card stack"><h2 style="margin:0">Office</h2><div class="muted">Enter the PIN to open the Office.</div>'+pinFields(false)+
     '<button class="wide" onclick="tryPin()">Open</button>'+
     '<div class="muted">Forgot the PIN? Clear this site\'s data in the phone or browser settings. If sync is on, your shop is safe in the cloud. Reconnect with the setup link.</div></div>';
 }
@@ -543,6 +621,17 @@ function setPin(){
 function tryPin(){
   if(document.getElementById('pin1').value===getPin()){dadUnlocked=true;render()}
   else{pinErr('That PIN did not match.')}
+}
+function refreshApp(){
+  var done=function(){location.reload()};
+  var p=Promise.resolve();
+  if('serviceWorker' in navigator)p=p.then(function(){return navigator.serviceWorker.getRegistrations()}).then(function(rs){return Promise.all(rs.map(function(r){return r.unregister()}))});
+  if(window.caches)p=p.then(function(){return caches.keys()}).then(function(ks){return Promise.all(ks.map(function(k){return caches.delete(k)}))});
+  p.then(done,done);
+}
+function appCard(){
+  return '<div class="card stack"><h2 style="margin:0">App version</h2><div class="muted">Version '+APP_VERSION+'. If something looks out of date, refresh the app. Your orders, money, and settings are not touched.</div>'+
+    '<button class="alt wide" onclick="refreshApp()">Refresh the app</button></div>';
 }
 function lockDad(){dadUnlocked=false;render()}
 function pinModal(){
@@ -600,10 +689,9 @@ function confetti(){
 }
 function celebrate(o,f,amt,cost,profit,sv){
   var good=profit>=0;
-  openModal('<div style="text-align:center"><h3>'+(good?'Paid!':'Paid')+'</h3><div class="big">'+$(amt)+'</div><div class="muted">from '+esc(o.shop)+' for '+o.qty+' '+esc(f.name)+'</div></div>'+
-   '<div class="card"><table><tr><td>Back to supplies (Restock)</td><td>'+$(cost)+'</td></tr><tr><td>Into Savings</td><td>'+$(sv)+'</td></tr><tr><td>Yours to spend</td><td>'+$(profit-sv)+'</td></tr></table></div>'+
-   (good?'':'<div class="alert">That was less than your supplies cost. Next time, ask for at least '+$(minPrice(f)*o.qty)+' for this order.</div>')+
-   '<button class="wide" onclick="closeModal()">'+(good?'Nice!':'OK')+'</button>');
+  openModal('<div style="text-align:center"><h3>Paid!</h3><div class="big">'+$(amt)+'</div><div class="muted">from '+esc(o.shop)+' for '+o.qty+' '+esc(f.name)+'</div></div>'+
+   '<div class="muted" style="text-align:center">Your jars have been filled. Open the Office to see them.</div>'+
+   '<button class="wide" onclick="closeModal()">Nice!</button>');
   if(good)confetti();
 }
 function nextStep(){
@@ -631,9 +719,9 @@ function fliesView(){
   var h='<button class="wide" onclick="menuModal()">Show a shop my menu</button>'+
     '<div class="chips" role="group" aria-label="Show flies">'+[['all','All flies'],['can','I can tie'],['learning','Still learning']].map(function(c){return '<button class="chip" aria-pressed="'+(flyShow===c[0])+'" onclick="flyShow=\''+c[0]+'\';render()">'+c[1]+'</button>'}).join('')+'</div>';
   var list=liveFlies().filter(function(f){return flyShow==='all'||(flyShow==='can'?canTie(f):!canTie(f))});
-  if(!list.length)h+='<div class="card muted">'+(S.flies.length?'Nothing here.':'No flies yet. Add one in Shop Settings.')+'</div>';
+  if(!list.length)h+='<div class="card muted">'+(S.flies.length?'Nothing here.':'No flies yet. Add one in the Office (Settings).')+'</div>';
   list.forEach(function(f){
-    h+='<div class="card stack"><div class="row"><b style="font-size:19px">'+esc(f.name)+'</b><span class="pill '+(canTie(f)?'paid':'')+'">'+(canTie(f)?'I can tie this':'Still learning')+'</span></div>'+
+    h+='<div class="card stack">'+photoImg(f)+'<div class="row"><b style="font-size:19px">'+esc(f.name)+'</b><span class="pill '+(canTie(f)?'paid':'')+'">'+(canTie(f)?'I can tie this':'Still learning')+'</span></div>'+
       '<div class="row"><span class="muted">Shop pays</span><b>'+$(f.price)+' each</b></div><div class="muted">'+$(f.price*12)+' per dozen</div>'+
       '<button class="alt small" onclick="toggleCan(\''+f.id+'\')">'+(canTie(f)?'Move to still learning':'I can tie this now')+'</button></div>';
   });
@@ -649,18 +737,28 @@ function homeView(){
   var low=S.materials.filter(function(m){return m.stock<=m.packQty*0.2&&shorts.indexOf(m)<0});
   var ns=nextStep();
   var h='<div class="card stack" style="border:2px solid var(--accent)"><div class="muted" style="font-weight:800;text-transform:uppercase;letter-spacing:.4px;font-size:13px">Do this next</div><div class="big" style="font-size:24px">'+esc(ns.t)+'</div><div>'+esc(ns.b)+'</div><button onclick="'+ns.act.replace(/"/g,'&quot;')+'">'+esc(ns.btn)+'</button></div>';
-  h+='<div class="jars">'+
-   '<div class="jar restock"><small>Restock</small><span class="big">'+$(r)+'</span><span class="muted" style="font-size:13px">for supplies</span></div>'+
-   '<div class="jar save"><small>Savings</small><span class="big">'+$(sv)+'</span><span class="muted" style="font-size:13px">for goals</span></div>'+
-   '<div class="jar spend"><small>Spending</small><span class="big">'+$(sp)+'</span><span class="muted" style="font-size:13px">yours</span></div></div>';
-  h+=goalCard();
+  h+='<button class="alt wide" onclick="menuModal()">Show a shop my menu</button>';
   h+='<div class="card stack"><div class="row"><span class="muted">Flies tied so far</span><b>'+fliesTied()+'</b></div>'+
-     '<div class="row"><span class="muted">Shops have paid you</span><b>'+$(made)+'</b></div>'+
      '<div class="row"><span class="muted">Orders to tie</span><b>'+openN+'</b></div>'+
      '<div class="row"><span class="muted">Waiting to get paid</span><b>'+tiedN+'</b></div></div>';
   if(shorts.length){h+='<div class="alert">Not enough tying materials for your open orders: '+shorts.map(function(m){return esc(m.name)}).join(', ')+'.</div>'}
   if(low.length){h+='<div class="alert">Running low: '+low.map(function(m){return esc(m.name)}).join(', ')+'.</div>'}
-  h+='<button class="alt wide" onclick="menuModal()">Show a shop my menu</button><button class="alt wide" onclick="spendModal()">I spent money</button>';
+  return h;
+}
+function moneyContent(){
+  var r=jar('restock'),sv=jar('save'),sp=jar('spend');
+  var made=S.orders.filter(function(o){return o.status==='paid'}).reduce(function(t,o){return t+o.paid},0);
+  var h='<div class="jars">'+
+   '<div class="jar restock"><small>Restock</small><span class="big">'+$(r)+'</span><span class="muted" style="font-size:13px">for supplies</span></div>'+
+   '<div class="jar save"><small>Savings</small><span class="big">'+$(sv)+'</span><span class="muted" style="font-size:13px">for goals</span></div>'+
+   '<div class="jar spend"><small>Spending</small><span class="big">'+$(sp)+'</span><span class="muted" style="font-size:13px">yours</span></div></div>';
+  h+=goalCard();
+  h+='<div class="card stack"><div class="row"><span class="muted">Shops have paid you</span><b>'+$(made)+'</b></div></div>';
+  h+='<button class="alt wide" onclick="spendModal()">I spent money</button>';
+  var paid=S.orders.filter(function(o){return o.status==='paid'&&fly(o.fly)}).slice(-6).reverse();
+  h+='<h2>What each order kept</h2>';
+  if(!paid.length)h+='<div class="card muted">Nothing yet. Paid orders show up here.</div>';
+  else h+='<div class="card"><table>'+paid.map(function(o){var f=fly(o.fly),k=o.paid-flyCost(f)*o.qty;return '<tr><td>'+o.qty+' '+esc(f.name)+'<div class="muted">'+esc(o.shop)+' &middot; paid '+$(o.paid)+' &middot; '+Math.round(marginOf(o.paid,flyCost(f)*o.qty))+'% kept</div></td><td style="color:'+(k<0?'var(--warn)':'var(--good)')+'">'+$(k)+'</td></tr>'}).join('')+'</table></div>';
   var rows=S.ledger.slice(-8).reverse();
   h+='<h2>Money history</h2>';
   if(!rows.length){h+='<div class="card muted">Nothing yet. When a shop pays you, the money lands in the jars.</div>'}
@@ -674,12 +772,12 @@ function ordersView(){
   if(!list.length)h+='<div class="card muted">No orders yet.</div>';
   list.forEach(function(o){
     var f=fly(o.fly);if(!f)return;
-    var cost=flyCost(f)*o.qty,est=f.price*o.qty;
+    var cost=flyCost(f)*o.qty,est=orderPrice(o)*o.qty,dw=o.status==='paid'?'':dealWarnText(f,orderPrice(o));
     var label={open:'To tie',tied:'Delivered, not paid',paid:'Paid'}[o.status];
     h+='<div class="card stack"><div class="row"><b>'+o.qty+' &times; '+esc(f.name)+'</b><span class="pill '+o.status+'">'+label+'</span></div>'+
        '<div class="muted">'+esc(o.shop)+' &middot; '+esc(o.date)+'</div>';
-    if(o.status==='paid'){h+='<div class="row"><span class="muted">Paid</span><b>'+$(o.paid)+'</b></div><div class="row"><span class="muted">You kept</span><b style="color:var(--good)">'+$(o.paid-cost)+'</b></div>'}
-    else{h+='<div class="row"><span class="muted">Supplies</span><b>'+$(cost)+'</b></div><div class="row"><span class="muted">Should earn</span><b>'+$(est)+'</b></div>'}
+    if(o.status==='paid'){h+='<div class="row"><span class="muted">Paid</span><b>'+$(o.paid)+'</b></div>'}
+    else{h+='<div class="row"><span class="muted">Price each</span><b>'+$(orderPrice(o))+'</b></div><div class="row"><span class="muted">Should earn</span><b>'+$(est)+'</b></div>'+(dw?'<div class="alert">'+esc(dw)+'</div>':'')}
     if(o.status==='open')h+='<button onclick="tieOrder(\''+o.id+'\')">I tied them</button>';
     if(o.status==='tied')h+='<button onclick="payModal(\''+o.id+'\')">Got paid</button>';
     if(o.status!=='paid')h+='<button class="alt small" onclick="orderModal(\''+o.id+'\')">Edit order</button>';
@@ -702,7 +800,7 @@ function shelfView(){
       '<div class="bar'+((short||low)?' low':'')+'"><i style="width:'+pct+'%"></i></div>'+
       (n?'<div class="muted">Open orders need '+n+'.'+(short?' <b style="color:var(--warn)">Short by '+(Math.round((n-m.stock)*10)/10)+'.</b>':'')+'</div>':'')+
       '<div class="row"><button class="alt small" onclick="countModal(\''+m.id+'\')">Count it</button><button class="alt small" onclick="materialModal(\''+m.id+'\')">Edit</button>'+
-      '<button class="small" onclick="buyModal(\''+m.id+'\')">Bought a pack ('+$(m.packCost)+')</button></div></div>';
+      '<button class="small" onclick="buyModal(\''+m.id+'\')">Bought a pack</button></div></div>';
   });
   return h;
 }
@@ -711,22 +809,21 @@ function dadContent(){
     '<div class="chips" role="group" aria-label="Show flies">'+[['all','All flies'],['can','I can tie'],['learning','Still learning']].map(function(c){return '<button class="chip" aria-pressed="'+(flyShow===c[0])+'" onclick="flyShow=\''+c[0]+'\';render()">'+c[1]+'</button>'}).join('')+'</div>';
   liveFlies().filter(function(f){return flyShow==='all'||(flyShow==='can'?canTie(f):!canTie(f))}).forEach(function(f){
     var c=flyCost(f),p=f.price-c;
-    h+='<div class="card stack"><div class="row"><h2 style="margin:0">'+esc(f.name)+'</h2><button class="alt small" onclick="flyModal(\''+f.id+'\')">Edit recipe</button></div>'+
+    h+='<div class="card stack">'+photoImg(f)+'<div class="row"><h2 style="margin:0">'+esc(f.name)+'</h2><button class="alt small" onclick="flyModal(\''+f.id+'\')">Edit recipe</button></div>'+
       '<div class="row"><span class="pill '+(canTie(f)?'paid':'')+'">'+(canTie(f)?'I can tie this':'Still learning')+'</span><button class="alt small" onclick="toggleCan(\''+f.id+'\')">'+(canTie(f)?'Move to still learning':'I can tie this now')+'</button></div>'+
-      '<div class="row"><span class="muted">Supplies per fly</span><b>'+$(c)+'</b></div>'+
-      '<div><label for="pr-'+f.id+'">You sell it for</label><input id="pr-'+f.id+'" type="number" inputmode="decimal" step="0.05" value="'+f.price.toFixed(2)+'" onchange="setPrice(\''+f.id+'\',this.value)"></div>'+
-      '<div class="row"><span class="muted">You keep per fly</span><b style="color:'+(p>=0?'var(--good)':'var(--warn)')+'">'+$(p)+'</b></div>'+
-      '<div class="row"><span class="muted">Lowest price ('+minMargin()+'% margin)</span><b>'+$(minPrice(f))+'</b></div>'+
-      (f.price<minPrice(f)-0.0001?'<div class="alert">Below your minimum. You keep '+Math.round(marginOf(f.price,c))+'% of each sale. Charge at least '+$(minPrice(f))+' to keep '+minMargin()+'%.</div>':'')+
-      '<div class="muted">A dozen earns '+$(f.price*12)+' and keeps '+$(p*12)+'.</div>'+
+      '<div class="row"><span class="muted">Supplies per fly</span><b id="sup-'+f.id+'">'+$(c)+'</b></div>'+
+      '<div><label for="pr-'+f.id+'">You sell it for (try different prices, the numbers below change as you type)</label><input id="pr-'+f.id+'" type="number" inputmode="decimal" step="0.05" value="'+f.price.toFixed(2)+'" oninput="playPrice(\''+f.id+'\',this.value)" onchange="setPrice(\''+f.id+'\',this.value)"></div>'+
+      '<div id="pl-'+f.id+'" class="stack">'+playHTML(f,f.price)+'</div>'+
+      '<button class="alt small" onclick="setToMin(\''+f.id+'\')">Set price to the lowest that keeps '+minMargin()+'%</button>'+
       '<div class="muted"><b>Recipe for one fly</b></div>'+
-      f.recipe.map(function(r){var m=mat(r[0]);return '<div class="recipe-line"><span class="nm">'+esc(m.name)+'<br><span class="muted">'+$(unit(m)*r[1])+'</span></span><input aria-label="Amount of '+esc(m.name)+'" type="number" inputmode="decimal" step="any" value="'+r[1]+'" onchange="setQty(\''+f.id+'\',\''+m.id+'\',this.value)"></div>'}).join('')+'</div>';
+      f.recipe.map(function(r){var m=mat(r[0]);return '<div class="recipe-line"><span class="nm">'+esc(m.name)+'<br><span class="muted">'+$(unit(m)*r[1])+'</span></span><input aria-label="Amount of '+esc(m.name)+'" type="number" inputmode="decimal" step="any" value="'+r[1]+'" oninput="liveQty(\''+f.id+'\',\''+m.id+'\',this.value)" onchange="setQty(\''+f.id+'\',\''+m.id+'\',this.value)"></div>'}).join('')+'</div>';
   });
-  h+='<div class="card stack"><h2 style="margin:0">Minimum margin</h2><div><label for="mm">Smallest share of each sale you want to keep (%)</label><input id="mm" type="number" inputmode="numeric" min="0" max="90" value="'+minMargin()+'" onchange="setMinMargin(this.value)"></div>'+
+  h+='<div class="card stack"><h2 style="margin:0">Minimum margin</h2><div><label for="mm">Smallest share of each sale you want to keep (%)</label><input id="mm" type="number" inputmode="numeric" min="0" max="90" value="'+minMargin()+'" oninput="liveMargin(this.value)" onchange="setMinMargin(this.value)"></div>'+
      '<div class="muted">Margin is what is left of the price after supplies. At 50%, you charge at least double the supply cost. This only warns you. It never stops you from entering a price.</div></div>';
   h+='<div class="card stack"><h2 style="margin:0">Savings jar</h2><div><label for="pct">Percent of profit you save</label><input id="pct" type="number" inputmode="numeric" value="'+S.savingsPct+'" onchange="setPct(this.value)"></div>'+
      '<div class="muted">Profit is what the shop pays minus supplies. Supplies go to Restock first, then this percent goes to Savings, and the rest is yours to spend.</div></div>';
   h+=syncCard();
+  h+=appCard();
   h+='<button class="alt wide" onclick="backupModal()">Backup and restore</button><button class="alt wide" onclick="resetModal()">Start over</button>';
   return h;
 }
@@ -737,7 +834,7 @@ var ICON={
  dad:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
  flies:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12c4-6 12-6 16 0-4 6-12 6-16 0z"/><circle cx="16" cy="11" r="1"/></svg>'
 };
-var TABS=[['home','Shop'],['orders','Orders'],['shelf','Tying Materials'],['flies','Flies'],['dad','Shop Settings']];
+var TABS=[['home','Shop'],['orders','Orders'],['shelf','Tying Materials'],['flies','Flies'],['dad','Office']];
 function applyShelfFilter(){
   var q=shelfQ.trim().toLowerCase(),rows=document.querySelectorAll('.mrow'),n=0;
   rows.forEach(function(r){
@@ -850,7 +947,11 @@ function syncCard(){
 if(!sync)loadSync();
 load();render();
 if(sync){setSyncMsg('Connecting...');startSync();pull()}
-if('serviceWorker' in navigator&&/^https?:/.test(location.protocol)){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}
+if('serviceWorker' in navigator&&/^https?:/.test(location.protocol)){
+  var hadController=!!navigator.serviceWorker.controller,reloadedForSW=false;
+  navigator.serviceWorker.addEventListener('controllerchange',function(){if(hadController&&!reloadedForSW){reloadedForSW=true;location.reload()}});
+  window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').then(function(r){try{r.update()}catch(e){}document.addEventListener('visibilitychange',function(){if(!document.hidden){try{r.update()}catch(e){}}})}).catch(function(){})});
+}
 </script>
 </body>
 </html>

@@ -1,5 +1,5 @@
 // Offline support. Bump VERSION whenever index.html changes so phones pick up the new copy.
-var VERSION = 'fly-shop-v2';
+var VERSION = 'fly-shop-v4';
 var SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
 
 self.addEventListener('install', function (e) {
@@ -30,7 +30,8 @@ self.addEventListener('fetch', function (e) {
     return;
   }
   // The app itself: try the network first so updates arrive, fall back to the saved copy offline.
-  e.respondWith(fetch(req).then(function (r) {
+  // cache:'no-store' skips the browser's own 10-minute cache so new versions show up right away.
+  e.respondWith(fetch(req.url, { cache: 'no-store' }).then(function (r) {
     var copy = r.clone();
     caches.open(VERSION).then(function (c) { c.put(req, copy); });
     return r;
