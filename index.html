@@ -72,7 +72,7 @@ label{display:block;font-weight:800;font-size:15px;margin-bottom:4px}
 .okmsg{background:var(--good-bg);color:var(--good);border-radius:12px;padding:10px 12px;font-weight:700;font-size:15px}
 nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);display:flex;justify-content:center;padding-bottom:env(safe-area-inset-bottom)}
 nav .in{display:flex;width:100%;max-width:560px}
-nav button{flex:1;background:transparent;color:var(--muted);border-radius:0;padding:10px 4px;min-height:62px;font-size:14px;display:flex;flex-direction:column;align-items:center;gap:3px}
+nav button{flex:1;background:transparent;color:var(--muted);border-radius:0;padding:10px 4px;min-height:62px;font-size:12px;line-height:1.1;text-align:center;display:flex;flex-direction:column;align-items:center;gap:3px}
 nav button svg{width:26px;height:26px}
 nav button[aria-current="page"]{color:var(--accent)}
 .sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;z-index:10}
@@ -160,7 +160,7 @@ function tieOrder(id){
   var o=S.orders.filter(function(x){return x.id===id})[0],f=fly(o.fly),short=[];
   f.recipe.forEach(function(r){var m=mat(r[0]),use=r[1]*o.qty;if(m.stock<use)short.push(m.name);m.stock=Math.max(0,m.stock-use)});
   o.status='tied';
-  commit(short.length?'Marked tied. You ran short on: '+short.join(', ')+'. Count your shelf.':'Nice work! Supplies taken off the shelf.');
+  commit(short.length?'Marked tied. You ran short on: '+short.join(', ')+'. Count your tying materials.':'Nice work! Supplies taken from your tying materials.');
 }
 function payOrder(id){
   var o=S.orders.filter(function(x){return x.id===id})[0],f=fly(o.fly);
@@ -178,6 +178,7 @@ function payOrder(id){
   celebrate(o,f,amt,cost,profit,sv);
 }
 function buyPack(id){
+  closeModal();
   var m=mat(id);
   m.stock+=m.packQty;
   addLedger('restock',-m.packCost,'Bought '+m.name);
@@ -194,11 +195,11 @@ function saveOrder(id){
   }
   o.shop=shop;o.date=date;closeModal();commit('Order saved.');
 }
-function deleteOrder(id){S.orders=S.orders.filter(function(x){return x.id!==id});closeModal();commit('Order deleted.')}
+function deleteOrder(id){snapshotUndo('before deleting an order');S.orders=S.orders.filter(function(x){return x.id!==id});closeModal();commit('Order deleted.')}
 function undoTied(id){
   var o=S.orders.filter(function(x){return x.id===id})[0],f=fly(o.fly);
   f.recipe.forEach(function(r){var m=mat(r[0]);if(m)m.stock+=r[1]*o.qty});
-  o.status='open';closeModal();commit('Back to "To tie". Supplies put back on the shelf.');
+  o.status='open';closeModal();commit('Back to "To tie". Supplies put back in your tying materials.');
 }
 function addOrder(){
   var shop=document.getElementById('o-shop').value.trim()||'Fly shop';
@@ -231,6 +232,7 @@ function delFlyModal(id){
 }
 function deleteFly(id){
   var f=fly(id),name=f.name;
+  snapshotUndo('before deleting '+name);
   var used=S.orders.some(function(o){return o.fly===id});
   if(used)f.deleted=true;else S.flies=S.flies.filter(function(x){return x.id!==id});
   closeModal();commit('Deleted '+name+'.');
@@ -272,7 +274,7 @@ function saveMaterial(id){
   else{
     var have=parseFloat(document.getElementById('m-have').value);
     S.materials.push({id:'X'+(S.nextId++),cat:cat,name:name,packCost:cost,packQty:qty,stock:isNaN(have)?qty:have});
-    closeModal();commit('Added '+name+' to the shelf.');
+    closeModal();commit('Added '+name+' to your tying materials.');
   }
 }
 function saveFly(id){
@@ -283,6 +285,45 @@ function saveFly(id){
   if(!name||isNaN(price)||price<0||!rec.length){document.getElementById('f-err').textContent='Add a name, a price, and at least one material.';return}
   if(id){var f=fly(id);f.name=name;f.price=price;f.recipe=rec;f.canTie=can;closeModal();commit('Saved '+name+'.')}
   else{S.flies.push({id:'F'+(S.nextId++),name:name,price:price,recipe:rec,canTie:can});closeModal();commit(can?'Added '+name+'. You can take orders for it.':'Added '+name+' as a fly you are still learning.')}
+}
+
+
+/* ---------- confirmations and undo ---------- */
+var UNDO_KEY='chase-fly-shop-undo-v1', pendingRestore=null;
+function snapshotUndo(label){try{localStorage.setItem(UNDO_KEY,JSON.stringify({label:label,at:Date.now(),s:JSON.stringify(S)}))}catch(e){}}
+function getUndo(){try{var t=localStorage.getItem(UNDO_KEY);return t?JSON.parse(t):null}catch(e){return null}}
+function undoLast(){
+  var u=getUndo();if(!u)return;
+  var d;try{d=JSON.parse(u.s)}catch(e){return}
+  d.rev=(S.rev||0)+1;S=d;
+  try{localStorage.removeItem(UNDO_KEY)}catch(e){}
+  closeModal();commit('Undone. Your shop is back to how it was '+u.label+'.');
+}
+function undoCard(){
+  var u=getUndo();if(!u)return '';
+  var t=new Date(u.at).toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+  return '<div class="card stack"><b>Undo</b><div class="muted">Last change: '+esc(u.label)+' at '+t+'. You can put the shop back exactly as it was.</div><button class="alt small" onclick="undoModal()">Undo it</button></div>';
+}
+function undoModal(){
+  var u=getUndo();if(!u)return;
+  confirmModal('Undo that change?','Your shop goes back to how it was '+esc(u.label)+'. Anything you did since then is replaced.','Yes, undo it','undoLast()');
+}
+function putBackModal(id){confirmModal('Put this order back?','It goes back to To tie and the supplies return to your tying materials.','Yes, put it back',"undoTied('"+id+"')")}
+function removeGoalModal(){confirmModal('Remove this goal?','The goal goes away. Your savings stay in the Savings jar.','Yes, remove it','removeGoal()')}
+function boughtModal(){var g=S.goal;if(!g)return;confirmModal('Bought it?','This takes '+$(g.amount)+' out of your Savings jar and clears the goal.','Yes, I bought it','goalBought()')}
+function disconnectModal(){confirmModal('Turn off sync?','This device stops sharing with Dad and stops getting updates. Nothing is deleted. Use the setup link to turn it back on.','Yes, turn it off','disconnectSync()')}
+function confirmModal(title,body,yes,action){
+  openModal('<h3>'+title+'</h3><div class="muted">'+body+'</div>'+
+   '<button class="wide" onclick="'+action+'">'+yes+'</button><button class="alt wide" onclick="closeModal()">Cancel</button>');
+}
+function typedConfirmModal(title,body,word,yes,action){
+  openModal('<h3>'+title+'</h3><div class="alert">'+body+'</div>'+
+   '<div><label for="tc-in">Type '+word+' to continue</label><input id="tc-in" autocomplete="off" autocapitalize="characters" oninput="document.getElementById(\'tc-go\').disabled=this.value.trim().toUpperCase()!==\''+word+'\'"></div>'+
+   '<button class="wide" id="tc-go" disabled onclick="'+action+'">'+yes+'</button><button class="alt wide" onclick="closeModal()">Cancel</button>');
+}
+function buyModal(id){
+  var m=mat(id);
+  confirmModal('Bought a pack?','This adds '+m.packQty+' to your count of '+esc(m.name)+' and takes '+$(m.packCost)+' out of the Restock jar.','Yes, I bought it',"buyPack('"+id+"')");
 }
 
 /* ---------- modals ---------- */
@@ -396,13 +437,13 @@ function orderModal(id){
   }
   h+='<div><label for="e-date">Date</label><input id="e-date" type="date" value="'+esc(o.date)+'"></div>'+
      '<button class="wide" onclick="saveOrder(\''+id+'\')">Save</button>';
-  if(o.status==='tied')h+='<button class="alt wide" onclick="undoTied(\''+id+'\')">Put back (not tied yet)</button>';
+  if(o.status==='tied')h+='<button class="alt wide" onclick="putBackModal(\''+id+'\')">Put back (not tied yet)</button>';
   if(o.status==='open')h+='<button class="alt wide" onclick="delModal(\''+id+'\')">Delete order</button>';
   h+='<button class="alt wide" onclick="closeModal()">Cancel</button>';
   openModal(h);
 }
 function delModal(id){
-  openModal('<h3>Delete this order?</h3><div class="muted">Nothing has been taken off the shelf yet, so this just removes it from the list.</div>'+
+  openModal('<h3>Delete this order?</h3><div class="muted">No materials have been used yet, so this just removes it from the list.</div>'+
    '<button class="wide" onclick="deleteOrder(\''+id+'\')">Yes, delete it</button><button class="alt wide" onclick="closeModal()">No, keep it</button>');
 }
 function payModal(id){
@@ -446,13 +487,26 @@ function backupModal(){
 }
 function copyBk(){var t=document.getElementById('bk');t.select();try{navigator.clipboard.writeText(t.value)}catch(e){}}
 function restoreBk(){
-  try{var d=JSON.parse(document.getElementById('rs').value);if(!d.materials||!d.flies||!d.orders||!d.ledger)throw 0;d.rev=(S.rev||0)+1;S=d;closeModal();commit('Restored.')}
-  catch(e){var t=document.getElementById('rs');t.value='';t.placeholder='That did not look like a backup. Paste the whole text.'}
+  try{
+    var d=JSON.parse(document.getElementById('rs').value);
+    if(!d.materials||!d.flies||!d.orders||!d.ledger)throw 0;
+    pendingRestore=d;
+    typedConfirmModal('Replace everything with this backup?',
+      'Restoring replaces ALL orders, materials, flies, and money'+(sync?' on this device and on every device that syncs with it':' on this device')+'. You can undo it afterward in Shop Settings.',
+      'RESTORE','Yes, restore the backup','applyRestore()');
+  }catch(e){var t=document.getElementById('rs');t.value='';t.placeholder='That did not look like a backup. Paste the whole text.'}
 }
-function resetAll(){var r=S.rev||0;S=defaults();S.rev=r+1;closeModal();commit('Fresh start.')}
+function applyRestore(){
+  if(!pendingRestore)return;
+  snapshotUndo('before restoring a backup');
+  var d=pendingRestore;pendingRestore=null;
+  d.rev=(S.rev||0)+1;S=d;closeModal();commit('Backup restored. You can undo this in Shop Settings.');
+}
+function resetAll(){snapshotUndo('before erasing everything');var r=S.rev||0;S=defaults();S.rev=r+1;closeModal();commit('Fresh start. You can undo this in Shop Settings.')}
 function resetModal(){
-  openModal('<h3>Start over?</h3><div class="muted">This erases all orders, money and counts on this device.</div>'+
-   '<button class="wide" onclick="resetAll()">Yes, erase everything</button><button class="alt wide" onclick="closeModal()">No, keep it</button>');
+  typedConfirmModal('Erase the whole shop?',
+    'This erases ALL orders, money, materials, and flies'+(sync?' on this device and on every device that syncs with it':' on this device')+'. You can undo it afterward in Shop Settings.',
+    'ERASE','Yes, erase everything','resetAll()');
 }
 
 /* ---------- screens ---------- */
@@ -468,14 +522,14 @@ function pinFields(two){
 function pinErr(m){var e=document.getElementById('pin-err');if(e){e.textContent=m;e.style.display='block'}}
 function dadView(){
   if(dadUnlocked){
-    return '<div class="row"><h2 style="margin:0">Dad\'s corner</h2><button class="alt small" onclick="lockDad()">Lock</button></div>'+dadContent()+
+    return '<div class="row"><h2 style="margin:0">Shop Settings</h2><button class="alt small" onclick="lockDad()">Lock</button></div>'+undoCard()+dadContent()+
       '<button class="alt wide" onclick="pinModal()">Change PIN</button>';
   }
   if(!getPin()){
-    return '<div class="card stack"><h2 style="margin:0">Dad\'s corner</h2><div class="muted">Recipes, prices, sync, and backups live here. Pick a 4-digit PIN so only Dad opens it.</div>'+
+    return '<div class="card stack"><h2 style="margin:0">Shop Settings</h2><div class="muted">Recipes, prices, sync, and backups live here. Pick a 4-digit PIN to keep these settings safe from accidental taps.</div>'+
       pinFields(true)+'<button class="wide" onclick="setPin()">Save PIN</button></div>';
   }
-  return '<div class="card stack"><h2 style="margin:0">Dad\'s corner</h2><div class="muted">Ask Dad to enter the PIN.</div>'+pinFields(false)+
+  return '<div class="card stack"><h2 style="margin:0">Shop Settings</h2><div class="muted">Enter the PIN to open the settings.</div>'+pinFields(false)+
     '<button class="wide" onclick="tryPin()">Open</button>'+
     '<div class="muted">Forgot the PIN? Clear this site\'s data in the phone or browser settings. If sync is on, your shop is safe in the cloud. Reconnect with the setup link.</div></div>';
 }
@@ -509,7 +563,7 @@ function goalModal(){
    '<div><label for="g-name">What is it?</label><input id="g-name" value="'+esc(g?g.name:'')+'" placeholder="Example: New vise"></div>'+
    '<div><label for="g-amt">How much does it cost?</label><input id="g-amt" type="number" inputmode="decimal" step="0.01" value="'+(g?g.amount:'')+'"></div>'+
    '<div class="alert" id="g-err" style="display:none"></div>'+
-   '<button class="wide" onclick="saveGoal()">Save goal</button>'+(g?'<button class="alt wide" onclick="removeGoal()">Remove goal</button>':'')+'<button class="alt wide" onclick="closeModal()">Cancel</button>');
+   '<button class="wide" onclick="saveGoal()">Save goal</button>'+(g?'<button class="alt wide" onclick="removeGoalModal()">Remove goal</button>':'')+'<button class="alt wide" onclick="closeModal()">Cancel</button>');
 }
 function saveGoal(){
   var n=document.getElementById('g-name').value.trim(),a=parseFloat(document.getElementById('g-amt').value);
@@ -518,7 +572,7 @@ function saveGoal(){
 }
 function removeGoal(){S.goal=null;closeModal();commit('Goal removed.')}
 function goalBought(){
-  var g=S.goal;if(!g)return;
+  var g=S.goal;if(!g)return;closeModal();
   addLedger('save',-g.amount,'Bought '+g.name);S.goal=null;commit('Enjoy your '+g.name+'!');
 }
 function goalCard(){
@@ -528,7 +582,7 @@ function goalCard(){
   return '<div class="card stack"><div class="row"><b>Goal: '+esc(g.name)+'</b><b>'+$(g.amount)+'</b></div>'+
     '<div class="bar"><i style="width:'+pct+'%"></i></div>'+
     '<div class="muted">'+(done?'You did it! You have enough saved.':$(sv)+' saved. '+$(g.amount-sv)+' to go.')+'</div>'+
-    '<div class="row">'+(done?'<button class="small" onclick="goalBought()">I bought it</button>':'<span></span>')+'<button class="alt small" onclick="goalModal()">Change goal</button></div></div>';
+    '<div class="row">'+(done?'<button class="small" onclick="boughtModal()">I bought it</button>':'<span></span>')+'<button class="alt small" onclick="goalModal()">Change goal</button></div></div>';
 }
 function confetti(){
   try{
@@ -564,10 +618,10 @@ function nextStep(){
   if(open.length){
     var o2=open[0],f2=fly(o2.fly);
     var short=f2.recipe.filter(function(r){var m=mat(r[0]);return m&&m.stock<r[1]*o2.qty}).map(function(r){return mat(r[0]).name});
-    return {t:'Restock first',b:'You are short on '+short.join(', ')+' for '+o2.qty+' '+f2.name+'.',btn:'Go to shelf',act:"go('shelf')"};
+    return {t:'Restock first',b:'You are short on '+short.join(', ')+' for '+o2.qty+' '+f2.name+'.',btn:'Go to Tying Materials',act:"go('shelf')"};
   }
   var low=S.materials.filter(function(m){return m.stock<=m.packQty*0.2});
-  if(low.length)return {t:'Running low',b:low.map(function(m){return m.name}).join(', ')+'.',btn:'Go to shelf',act:"go('shelf')"};
+  if(low.length)return {t:'Running low',b:low.map(function(m){return m.name}).join(', ')+'.',btn:'Go to Tying Materials',act:"go('shelf')"};
   return {t:'All caught up',b:'No orders waiting. Show a shop your menu and ask if they want more flies.',btn:'Show my menu',act:'menuModal()'};
 }
 function fliesTied(){return S.orders.filter(function(o){return o.status==='tied'||o.status==='paid'}).reduce(function(t,o){return t+o.qty},0)}
@@ -577,7 +631,7 @@ function fliesView(){
   var h='<button class="wide" onclick="menuModal()">Show a shop my menu</button>'+
     '<div class="chips" role="group" aria-label="Show flies">'+[['all','All flies'],['can','I can tie'],['learning','Still learning']].map(function(c){return '<button class="chip" aria-pressed="'+(flyShow===c[0])+'" onclick="flyShow=\''+c[0]+'\';render()">'+c[1]+'</button>'}).join('')+'</div>';
   var list=liveFlies().filter(function(f){return flyShow==='all'||(flyShow==='can'?canTie(f):!canTie(f))});
-  if(!list.length)h+='<div class="card muted">'+(S.flies.length?'Nothing here.':'No flies yet. Ask Dad to add one in Dad\'s corner.')+'</div>';
+  if(!list.length)h+='<div class="card muted">'+(S.flies.length?'Nothing here.':'No flies yet. Add one in Shop Settings.')+'</div>';
   list.forEach(function(f){
     h+='<div class="card stack"><div class="row"><b style="font-size:19px">'+esc(f.name)+'</b><span class="pill '+(canTie(f)?'paid':'')+'">'+(canTie(f)?'I can tie this':'Still learning')+'</span></div>'+
       '<div class="row"><span class="muted">Shop pays</span><b>'+$(f.price)+' each</b></div><div class="muted">'+$(f.price*12)+' per dozen</div>'+
@@ -604,7 +658,7 @@ function homeView(){
      '<div class="row"><span class="muted">Shops have paid you</span><b>'+$(made)+'</b></div>'+
      '<div class="row"><span class="muted">Orders to tie</span><b>'+openN+'</b></div>'+
      '<div class="row"><span class="muted">Waiting to get paid</span><b>'+tiedN+'</b></div></div>';
-  if(shorts.length){h+='<div class="alert">Not enough on the shelf for your open orders: '+shorts.map(function(m){return esc(m.name)}).join(', ')+'.</div>'}
+  if(shorts.length){h+='<div class="alert">Not enough tying materials for your open orders: '+shorts.map(function(m){return esc(m.name)}).join(', ')+'.</div>'}
   if(low.length){h+='<div class="alert">Running low: '+low.map(function(m){return esc(m.name)}).join(', ')+'.</div>'}
   h+='<button class="alt wide" onclick="menuModal()">Show a shop my menu</button><button class="alt wide" onclick="spendModal()">I spent money</button>';
   var rows=S.ledger.slice(-8).reverse();
@@ -648,7 +702,7 @@ function shelfView(){
       '<div class="bar'+((short||low)?' low':'')+'"><i style="width:'+pct+'%"></i></div>'+
       (n?'<div class="muted">Open orders need '+n+'.'+(short?' <b style="color:var(--warn)">Short by '+(Math.round((n-m.stock)*10)/10)+'.</b>':'')+'</div>':'')+
       '<div class="row"><button class="alt small" onclick="countModal(\''+m.id+'\')">Count it</button><button class="alt small" onclick="materialModal(\''+m.id+'\')">Edit</button>'+
-      '<button class="small" onclick="buyPack(\''+m.id+'\')">Bought a pack ('+$(m.packCost)+')</button></div></div>';
+      '<button class="small" onclick="buyModal(\''+m.id+'\')">Bought a pack ('+$(m.packCost)+')</button></div></div>';
   });
   return h;
 }
@@ -683,7 +737,7 @@ var ICON={
  dad:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
  flies:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12c4-6 12-6 16 0-4 6-12 6-16 0z"/><circle cx="16" cy="11" r="1"/></svg>'
 };
-var TABS=[['home','Shop'],['orders','Orders'],['shelf','Shelf'],['flies','Flies'],['dad','Dad']];
+var TABS=[['home','Shop'],['orders','Orders'],['shelf','Tying Materials'],['flies','Flies'],['dad','Shop Settings']];
 function applyShelfFilter(){
   var q=shelfQ.trim().toLowerCase(),rows=document.querySelectorAll('.mrow'),n=0;
   rows.forEach(function(r){
@@ -769,7 +823,7 @@ function connectSync(){
   pull().then(function(){render()});
   render();
 }
-function disconnectSync(){sync=null;storeSync();setSyncMsg('');render()}
+function disconnectSync(){closeModal();sync=null;storeSync();setSyncMsg('');render()}
 function copySetupLink(){var t=document.getElementById('sy-share');t.select();try{navigator.clipboard.writeText(t.value)}catch(e){}}
 function syncCard(){
   if(sync){
@@ -777,10 +831,10 @@ function syncCard(){
      '<div class="muted">Anyone with the setup link below can see and change this shop. Only share it with Dad.</div>'+
      '<div><label for="sy-share">Setup link for another device</label><textarea id="sy-share" readonly onclick="this.select()">'+esc(setupLink())+'</textarea></div>'+
      '<button class="alt wide" onclick="copySetupLink()">Copy setup link</button>'+
-     '<button class="alt wide" onclick="disconnectSync()">Turn off sync on this device</button></div>';
+     '<button class="alt wide" onclick="disconnectModal()">Turn off sync on this device</button></div>';
   }
   return '<div class="card stack"><h2 style="margin:0">Sync with Dad</h2>'+
-    '<div class="muted">Connect so Dad can see the shop on his phone or computer. Both devices show the same orders, shelf, and jars.</div>'+
+    '<div class="muted">Connect so Dad can see the shop on his phone or computer. Both devices show the same orders, tying materials, and jars.</div>'+
     '<div><label for="sy-link">Paste a setup link</label><textarea id="sy-link" placeholder="Paste the link Dad sent you"></textarea></div>'+
     '<div class="muted">Or enter the details by hand:</div>'+
     '<div><label for="sy-url">Database address</label><input id="sy-url" value="https://fly-shop-6d486-default-rtdb.firebaseio.com" placeholder="https://your-project-default-rtdb.firebaseio.com"></div>'+
