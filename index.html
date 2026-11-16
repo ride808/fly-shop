@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f3d36">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Fly Shop">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<title>Chase's Fly Shop</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bitter:wght@600;800&family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: one phone-width column, big tap targets, bottom tab bar. Money lives in three jars. */
+:root{
+  --bg:#e9eeec; --card:#ffffff; --ink:#18302b; --muted:#5d716b; --line:#cfdad6;
+  --pine:#1f3d36; --pine-ink:#ffffff; --accent:#ff6a1a; --accent-ink:#ffffff;
+  --good:#1f7a4d; --warn:#b3261e; --warn-bg:#fbe7e4; --good-bg:#e0f2e8;
+  --display:'Bitter',Georgia,serif; --body:'Nunito',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f1b18; --card:#182a26; --ink:#e8f0ed; --muted:#9bb0aa; --line:#2b423c;
+  --pine:#0b1512; --pine-ink:#e8f0ed; --accent:#ff7d36; --accent-ink:#1a0c02;
+  --good:#6fd6a0; --warn:#ff8f86; --warn-bg:#3a1f1c; --good-bg:#17382b; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#0f1b18; --card:#182a26; --ink:#e8f0ed; --muted:#9bb0aa; --line:#2b423c;
+  --pine:#0b1512; --pine-ink:#e8f0ed; --accent:#ff7d36; --accent-ink:#1a0c02;
+  --good:#6fd6a0; --warn:#ff8f86; --warn-bg:#3a1f1c; --good-bg:#17382b; color-scheme:dark;}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:17px;line-height:1.35;-webkit-tap-highlight-color:transparent}
+#app{max-width:560px;margin:0 auto;min-height:100%;display:flex;flex-direction:column}
+header{background:var(--pine);color:var(--pine-ink);padding:calc(14px + env(safe-area-inset-top)) 18px 16px}
+header h1{font-family:var(--display);font-weight:800;font-size:26px;margin:0;letter-spacing:.2px}
+header p{margin:2px 0 0;opacity:.8;font-size:15px}
+main{flex:1;padding:16px 16px 110px;display:flex;flex-direction:column;gap:14px}
+h2{font-family:var(--display);font-size:20px;margin:6px 0 0}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
+.row{display:flex;gap:10px;align-items:center;justify-content:space-between}
+.stack{display:flex;flex-direction:column;gap:10px}
+.muted{color:var(--muted);font-size:15px}
+.big{font-family:var(--display);font-weight:800;font-size:30px;font-variant-numeric:tabular-nums}
+.jars{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.jar{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 10px;text-align:center}
+.jar .big{font-size:23px;display:block;margin-top:4px}
+.jar small{display:block;color:var(--muted);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.4px}
+.jar.restock{border-top:5px solid var(--accent)}
+.jar.save{border-top:5px solid var(--good)}
+.jar.spend{border-top:5px solid #3b7ea1}
+.jar.owe .big{color:var(--warn)}
+button{font:inherit;font-weight:800;border:0;border-radius:14px;padding:13px 16px;min-height:48px;cursor:pointer;background:var(--accent);color:var(--accent-ink)}
+button.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}
+button.small{min-height:40px;padding:8px 14px;font-size:15px}
+button.wide{width:100%}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+input,select{font:inherit;width:100%;min-height:48px;padding:10px 12px;border-radius:12px;border:2px solid var(--line);background:var(--card);color:var(--ink)}
+label{display:block;font-weight:800;font-size:15px;margin-bottom:4px}
+.pill{display:inline-block;font-size:13px;font-weight:800;padding:3px 10px;border-radius:99px;background:var(--line);color:var(--ink)}
+.pill.open{background:var(--accent);color:var(--accent-ink)}
+.pill.tied{background:#3b7ea1;color:#fff}
+.pill.paid{background:var(--good);color:#fff}
+.pill.bad{background:var(--warn);color:#fff}
+.bar{height:14px;border-radius:99px;background:var(--line);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--good);border-radius:99px}
+.bar.low i{background:var(--warn)}
+.alert{background:var(--warn-bg);color:var(--warn);border-radius:12px;padding:10px 12px;font-weight:700;font-size:15px}
+.okmsg{background:var(--good-bg);color:var(--good);border-radius:12px;padding:10px 12px;font-weight:700;font-size:15px}
+nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);display:flex;justify-content:center;padding-bottom:env(safe-area-inset-bottom)}
+nav .in{display:flex;width:100%;max-width:560px}
+nav button{flex:1;background:transparent;color:var(--muted);border-radius:0;padding:10px 4px;min-height:62px;font-size:14px;display:flex;flex-direction:column;align-items:center;gap:3px}
+nav button svg{width:26px;height:26px}
+nav button[aria-current="page"]{color:var(--accent)}
+.sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;z-index:10}
+.sheet{background:var(--bg);width:100%;max-width:560px;border-radius:22px 22px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:90%;overflow:auto;display:flex;flex-direction:column;gap:12px}
+.sheet>*{flex-shrink:0}
+.sheet h3{font-family:var(--display);margin:0;font-size:21px}
+.recipe-line{display:flex;gap:10px;align-items:center}
+.recipe-line .nm{flex:1;font-size:15px}
+.recipe-line input{width:78px;min-height:40px}
+table{width:100%;border-collapse:collapse;font-size:15px;font-variant-numeric:tabular-nums}
+td{padding:7px 0;border-bottom:1px solid var(--line)}
+td:last-child{text-align:right;font-weight:800}
+.chips{min-height:48px;display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.chip{flex:none;white-space:nowrap;min-height:40px;padding:6px 14px;font-size:15px;border-radius:99px;background:transparent;color:var(--ink);border:2px solid var(--line)}
+.chip[aria-pressed="true"]{background:var(--pine);color:var(--pine-ink);border-color:var(--pine)}
+textarea{font:13px/1.3 ui-monospace,monospace;width:100%;min-height:90px;border-radius:12px;border:2px solid var(--line);padding:10px;background:var(--card);color:var(--ink)}
+@media (prefers-reduced-motion:no-preference){button{transition:transform .08s}button:active{transform:scale(.97)}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><h1>Chase's Fly Shop</h1><p id="tag">Tie it. Deliver it. Pay the supply bin first.</p><p id="syncline" style="font-size:13px;opacity:.7"></p></header>
+  <main id="main"></main>
+</div>
+<nav><div class="in" id="nav"></div></nav>
+<div id="modal"></div>
+
+<script>
+/* ---------- data ---------- */
+var KEY='chase-fly-shop-v1';
+function defaults(){
+  var mats=[
+    ['M001','Hook','Nymph TMC 2487 #14',11.99,25],
+    ['M002','Thread','Uni Red 6/0',5.00,200],
+    ['M003','Bead','2.5mm or 3/32 Red Tungsten Bead',10.00,20],
+    ['M004','Dubbing','Ice Dubbing (Olive)',5.00,200],
+    ['M005','Wire','UTC Copper Brown Wire Ultra',2.10,200],
+    ['M006','Hook','Nymph U102 #18',7.60,50],
+    ['M007','Thread','VeeVus C02 12/0',5.10,200],
+    ['M008','Bead','Silver 2.5mm or 3/32 Brass Bead',3.80,25],
+    ['M009','Dubbing','Superfine Dark Tan (Hardline)',3.50,200],
+    ['M010','Wire','UTC Silver Ultra Wire',4.20,200]
+  ].map(function(m){return {id:m[0],cat:m[1],name:m[2],packCost:m[3],packQty:m[4],stock:m[4]}});
+  return {
+    rev:0, updatedAt:0, savingsPct:25, nextId:3, shopName:'Fly shop',
+    materials:mats,
+    flies:[
+      {id:'F1',name:'Blood Midge #16',price:2.50,recipe:[['M001',1],['M002',1],['M003',1],['M004',1],['M005',1]]},
+      {id:'F2',name:'White Midge #18',price:1.50,recipe:[['M006',1],['M007',1],['M008',1],['M009',1],['M010',1]]}
+    ],
+    orders:[{id:'O1',shop:'Fly shop',fly:'F1',qty:12,status:'open',date:today(),paid:0}],
+    ledger:[]
+  };
+}
+var S, tab='home', toast='', shelfCats=[], shelfQ='', flyCats=[], flyQ='', flyShow='all';
+function today(){return new Date().toISOString().slice(0,10)}
+function load(){try{var t=localStorage.getItem(KEY);if(t){S=JSON.parse(t);return}}catch(e){}S=defaults()}
+function save(){S.rev=(S.rev||0)+1;S.updatedAt=Date.now();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}schedulePush()}
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function $(n){var v=Math.round(n*100)/100;return (v<0?'-':'')+'$'+Math.abs(v).toFixed(2)}
+function mat(id){return S.materials.filter(function(m){return m.id===id})[0]}
+function fly(id){return S.flies.filter(function(f){return f.id===id})[0]}
+function unit(m){return m.packCost/m.packQty}
+function canTie(f){return f.canTie!==false}
+function tieable(keepId){return S.flies.filter(function(f){return canTie(f)||f.id===keepId})}
+function flyCost(f){return f.recipe.reduce(function(t,r){var m=mat(r[0]);return t+(m?unit(m)*r[1]:0)},0)}
+function jar(b){return S.ledger.filter(function(e){return e.b===b}).reduce(function(t,e){return t+e.amt},0)}
+function addLedger(b,amt,note){S.ledger.push({b:b,amt:Math.round(amt*100)/100,note:note,d:today()})}
+function neededForOpen(){
+  var need={};
+  S.orders.filter(function(o){return o.status==='open'}).forEach(function(o){
+    var f=fly(o.fly);if(!f)return;
+    f.recipe.forEach(function(r){need[r[0]]=(need[r[0]]||0)+r[1]*o.qty});
+  });
+  return need;
+}
+function commit(msg){toast=msg||'';save();render()}
+
+/* ---------- actions ---------- */
+function tieOrder(id){
+  var o=S.orders.filter(function(x){return x.id===id})[0],f=fly(o.fly),short=[];
+  f.recipe.forEach(function(r){var m=mat(r[0]),use=r[1]*o.qty;if(m.stock<use)short.push(m.name);m.stock=Math.max(0,m.stock-use)});
+  o.status='tied';
+  commit(short.length?'Marked tied. You ran short on: '+short.join(', ')+'. Count your shelf.':'Nice work! Supplies taken off the shelf.');
+}
+function payOrder(id){
+  var o=S.orders.filter(function(x){return x.id===id})[0],f=fly(o.fly);
+  var amt=parseFloat(document.getElementById('amt').value);
+  if(isNaN(amt)||amt<0){return}
+  var cost=flyCost(f)*o.qty,profit=amt-cost;
+  var sv=profit>0?profit*S.savingsPct/100:0;
+  o.status='paid';o.paid=amt;
+  var note=o.qty+' '+f.name;
+  addLedger('restock',cost,note);
+  addLedger('save',sv,note);
+  addLedger('spend',profit-sv,note);
+  closeModal();
+  commit(profit>=0?'Paid! You kept '+$(profit)+' after supplies.':'Paid, but that was less than the supplies cost.');
+}
+function buyPack(id){
+  var m=mat(id);
+  m.stock+=m.packQty;
+  addLedger('restock',-m.packCost,'Bought '+m.name);
+  commit('Restocked '+m.name+'. Paid '+$(m.packCost)+' from the Restock jar.');
+}
+function saveOrder(id){
+  var o=S.orders.filter(function(x){return x.id===id})[0];
+  var shop=document.getElementById('e-shop').value.trim()||'Fly shop';
+  var date=document.getElementById('e-date').value||o.date;
+  if(o.status==='open'){
+    var qty=parseInt(document.getElementById('e-qty').value,10);
+    if(!(qty>0))return;
+    o.qty=qty;o.fly=document.getElementById('e-fly').value;
+  }
+  o.shop=shop;o.date=date;closeModal();commit('Order saved.');
+}
+function deleteOrder(id){S.orders=S.orders.filter(function(x){return x.id!==id});closeModal();commit('Order deleted.')}
+function undoTied(id){
+  var o=S.orders.filter(function(x){return x.id===id})[0],f=fly(o.fly);
+  f.recipe.forEach(function(r){var m=mat(r[0]);if(m)m.stock+=r[1]*o.qty});
+  o.status='open';closeModal();commit('Back to "To tie". Supplies put back on the shelf.');
+}
+function addOrder(){
+  var shop=document.getElementById('o-shop').value.trim()||'Fly shop';
+  var qty=parseInt(document.getElementById('o-qty').value,10);
+  if(!(qty>0)||!document.getElementById('o-fly').value)return;
+  S.shopName=shop;
+  S.orders.unshift({id:'O'+(S.nextId++),shop:shop,fly:document.getElementById('o-fly').value,qty:qty,status:'open',date:today(),paid:0});
+  closeModal();commit('Order added.');
+}
+function spendMoney(){
+  var amt=parseFloat(document.getElementById('sp-amt').value);
+  var note=document.getElementById('sp-note').value.trim()||'Spent';
+  if(!(amt>0))return;
+  addLedger('spend',-amt,note);closeModal();commit('Recorded.');
+}
+function setCount(id){
+  var v=parseFloat(document.getElementById('cnt').value);
+  if(isNaN(v)||v<0)return;
+  mat(id).stock=v;closeModal();commit('Count saved.');
+}
+function toggleCan(id){var f=fly(id);f.canTie=!canTie(f);commit(f.canTie?f.name+' is now on your menu.':f.name+' moved to still learning.')}
+function menuText(){
+  var can=S.flies.filter(canTie),lrn=S.flies.filter(function(f){return !canTie(f)});
+  var t="Chase's Fly Shop\n\n";
+  can.forEach(function(f){t+=f.name+': '+$(f.price)+' each, '+$(f.price*12)+' per dozen\n'});
+  if(lrn.length)t+='\nComing soon: '+lrn.map(function(f){return f.name}).join(', ')+'\n';
+  return t;
+}
+function copyMenu(){var t=document.getElementById('menu-text');t.select();try{navigator.clipboard.writeText(t.value)}catch(e){}}
+function menuModal(){
+  var can=S.flies.filter(canTie),lrn=S.flies.filter(function(f){return !canTie(f)});
+  var h='<h3 style="font-size:26px">Chase\'s Fly Shop</h3><div class="muted">Hand-tied flies. Order by the dozen.</div>';
+  if(!can.length)h+='<div class="card muted">No flies on the menu yet. Mark a fly as one you can tie on the Flies tab.</div>';
+  can.forEach(function(f){
+    h+='<div class="card"><div class="row"><b style="font-size:19px">'+esc(f.name)+'</b><span class="big" style="font-size:22px">'+$(f.price)+'</span></div><div class="muted">'+$(f.price*12)+' per dozen</div></div>';
+  });
+  if(lrn.length)h+='<div class="muted"><b>Coming soon:</b> '+lrn.map(function(f){return esc(f.name)}).join(', ')+'</div>';
+  h+='<textarea id="menu-text" readonly style="position:absolute;left:-9999px">'+esc(menuText())+'</textarea>'+
+     '<button class="wide" onclick="copyMenu()">Copy menu as text</button><button class="alt wide" onclick="closeModal()">Close</button>';
+  openModal(h);
+}
+function setPrice(id,v){var f=fly(id);v=parseFloat(v);if(!isNaN(v)&&v>=0){f.price=v;save();render()}}
+function setQty(fid,mid,v){var f=fly(fid);v=parseFloat(v);if(isNaN(v)||v<0)return;f.recipe.forEach(function(r){if(r[0]===mid)r[1]=v});save();render()}
+function setPct(v){v=parseFloat(v);if(!isNaN(v)&&v>=0&&v<=100){S.savingsPct=v;save();render()}}
+function setPack(id,k,v){v=parseFloat(v);if(isNaN(v)||v<=0)return;mat(id)[k]=v;save();render()}
+
+function saveMaterial(id){
+  var name=document.getElementById('m-name').value.trim();
+  var cat=document.getElementById('m-cat').value.trim()||'Other';
+  var cost=parseFloat(document.getElementById('m-cost').value);
+  var qty=parseFloat(document.getElementById('m-qty').value);
+  if(!name||isNaN(cost)||cost<0||!(qty>0)){document.getElementById('m-err').textContent='Add a name, what the pack cost, and how many are in a pack.';return}
+  if(id){var m=mat(id);m.name=name;m.cat=cat;m.packCost=cost;m.packQty=qty;closeModal();commit('Saved '+name+'.')}
+  else{
+    var have=parseFloat(document.getElementById('m-have').value);
+    S.materials.push({id:'X'+(S.nextId++),cat:cat,name:name,packCost:cost,packQty:qty,stock:isNaN(have)?qty:have});
+    closeModal();commit('Added '+name+' to the shelf.');
+  }
+}
+function saveFly(id){
+  var name=document.getElementById('f-name').value.trim();
+  var price=parseFloat(document.getElementById('f-price').value);
+  var rec=[];var can=document.getElementById('f-can').value==='yes';
+  S.materials.forEach(function(m){var q=parseFloat(document.getElementById('rq-'+m.id).value);if(q>0)rec.push([m.id,q])});
+  if(!name||isNaN(price)||price<0||!rec.length){document.getElementById('f-err').textContent='Add a name, a price, and at least one material.';return}
+  if(id){var f=fly(id);f.name=name;f.price=price;f.recipe=rec;f.canTie=can;closeModal();commit('Saved '+name+'.')}
+  else{S.flies.push({id:'F'+(S.nextId++),name:name,price:price,recipe:rec,canTie:can});closeModal();commit(can?'Added '+name+'. You can take orders for it.':'Added '+name+' as a fly you are still learning.')}
+}
+
+/* ---------- modals ---------- */
+function materialModal(id){
+  var m=id?mat(id):null;
+  var cats=['Hook','Thread','Bead','Dubbing','Wire','Feather','Fur','Other'];
+  S.materials.forEach(function(x){if(cats.indexOf(x.cat)<0)cats.push(x.cat)});
+  openModal('<h3>'+(m?'Edit material':'New material')+'</h3>'+
+   '<div><label for="m-name">Name</label><input id="m-name" value="'+esc(m?m.name:'')+'" placeholder="Example: Pheasant tail fibers"></div>'+
+   '<div><label for="m-cat">Type</label><input id="m-cat" list="cats" value="'+esc(m?m.cat:'')+'" placeholder="Hook, bead, thread..."><datalist id="cats">'+cats.map(function(c){return '<option value="'+esc(c)+'">'}).join('')+'</datalist></div>'+
+   '<div><label for="m-cost">What did the pack cost?</label><input id="m-cost" type="number" inputmode="decimal" step="0.01" value="'+(m?m.packCost:'')+'"></div>'+
+   '<div><label for="m-qty">How many are in the pack?</label><input id="m-qty" type="number" inputmode="decimal" step="any" value="'+(m?m.packQty:'')+'"></div>'+
+   '<div class="muted">Hooks and beads: count each one. Thread and wire: pick yards or inches and always use the same one.</div>'+
+   (m?'':'<div><label for="m-have">How many do you have right now?</label><input id="m-have" type="number" inputmode="decimal" step="any" placeholder="Leave blank for a full pack"></div>')+
+   '<div class="alert" id="m-err" style="display:none"></div>'+
+   '<button class="wide" onclick="saveMaterial('+(m?'\''+m.id+'\'':'null')+')">Save material</button><button class="alt wide" onclick="closeModal()">Cancel</button>');
+  var er=document.getElementById('m-err');
+  new MutationObserver(function(){er.style.display=er.textContent?'block':'none'}).observe(er,{childList:true});
+}
+function readFlyDraft(){
+  var q={};
+  S.materials.forEach(function(m){var el=document.getElementById('rq-'+m.id);if(el&&el.value!=='')q[m.id]=el.value});
+  var n=document.getElementById('f-name'),p=document.getElementById('f-price');
+  var c=document.getElementById('f-can');
+  return {name:n?n.value:'',price:p?p.value:'',can:c?c.value:'',qty:q};
+}
+function addMaterialInline(fid){
+  var name=document.getElementById('nm-name').value.trim();
+  var cat=document.getElementById('nm-cat').value.trim()||'Other';
+  var cost=parseFloat(document.getElementById('nm-cost').value);
+  var qty=parseFloat(document.getElementById('nm-qty').value);
+  var have=parseFloat(document.getElementById('nm-have').value);
+  var er=document.getElementById('nm-err');
+  if(!name||isNaN(cost)||cost<0||!(qty>0)){er.textContent='Add a name, what the pack cost, and how many are in a pack.';er.style.display='block';return}
+  var draft=readFlyDraft();
+  var id='X'+(S.nextId++);
+  S.materials.push({id:id,cat:cat,name:name,packCost:cost,packQty:qty,stock:isNaN(have)?qty:have});
+  draft.qty[id]='1';
+  save();
+  flyModal(fid,draft);
+}
+function flyModal(id,draft){
+  var f=id?fly(id):null;
+  var qtyOf={};
+  if(draft){qtyOf=draft.qty}else if(f){f.recipe.forEach(function(r){qtyOf[r[0]]=r[1]})}
+  var nameV=draft?draft.name:(f?f.name:'');
+  var priceV=draft?draft.price:(f?f.price.toFixed(2):'');
+  var canV=draft&&draft.can?draft.can:(f?(canTie(f)?'yes':'no'):'no');
+  var cats=['Hook','Thread','Bead','Dubbing','Wire','Feather','Fur','Other'];
+  S.materials.forEach(function(x){if(cats.indexOf(x.cat)<0)cats.push(x.cat)});
+  var fid=id?'\''+id+'\'':'null';
+  if(!draft){flyCats=[];flyQ=''}
+  openModal('<h3>'+(f?'Edit fly':'New fly')+'</h3>'+
+   '<div><label for="f-name">Fly name</label><input id="f-name" value="'+esc(nameV)+'" placeholder="Example: Zebra Midge #18"></div>'+
+   '<div><label for="f-price">What the shop pays per fly</label><input id="f-price" type="number" inputmode="decimal" step="0.05" value="'+esc(priceV)+'"></div>'+
+   '<div><label for="f-can">Can you tie this fly yet?</label><select id="f-can"><option value="yes"'+(canV==='yes'?' selected':'')+'>Yes, I can tie it</option><option value="no"'+(canV==='no'?' selected':'')+'>Not yet, still learning</option></select></div>'+
+   '<div><b>What goes into ONE fly?</b><div class="muted">Type how many of each. Leave it blank if the fly does not use it. Materials you fill in always stay on screen.</div></div>'+
+   '<input id="fq" type="search" aria-label="Find a material" placeholder="Find a material" value="'+esc(flyQ)+'" oninput="flyQ=this.value;applyFlyFilter()">'+
+   '<div class="chips" id="fchips" role="group" aria-label="Filter by type"></div>'+
+   S.materials.map(function(m){return '<div class="recipe-line frow" data-cat="'+esc(m.cat)+'" data-name="'+esc((m.name+' '+m.cat).toLowerCase())+'" data-id="'+m.id+'"><label class="nm" for="rq-'+m.id+'" style="margin:0;font-weight:700">'+esc(m.name)+'<br><span class="muted">'+esc(m.cat)+'</span></label><input id="rq-'+m.id+'" type="number" inputmode="decimal" step="any" placeholder="0" value="'+(qtyOf[m.id]!==undefined?esc(qtyOf[m.id]):'')+'"></div>'}).join('')+
+   '<button class="alt wide" id="nm-open" onclick="document.getElementById(\'nm-box\').style.display=\'flex\';this.style.display=\'none\'">+ New material</button>'+
+   '<div class="card stack" id="nm-box" style="display:none"><b>Add a new material</b>'+
+    '<div><label for="nm-name">Name</label><input id="nm-name" placeholder="Example: Pheasant tail fibers"></div>'+
+    '<div><label for="nm-cat">Type</label><input id="nm-cat" list="nm-cats" placeholder="Hook, bead, thread..."><datalist id="nm-cats">'+cats.map(function(c){return '<option value="'+esc(c)+'">'}).join('')+'</datalist></div>'+
+    '<div><label for="nm-cost">What did the pack cost?</label><input id="nm-cost" type="number" inputmode="decimal" step="0.01"></div>'+
+    '<div><label for="nm-qty">How many are in the pack?</label><input id="nm-qty" type="number" inputmode="decimal" step="any"></div>'+
+    '<div><label for="nm-have">How many do you have now?</label><input id="nm-have" type="number" inputmode="decimal" step="any" placeholder="Leave blank for a full pack"></div>'+
+    '<div class="alert" id="nm-err" style="display:none"></div>'+
+    '<button onclick="addMaterialInline('+fid+')">Add it to this fly</button></div>'+
+   '<div class="alert" id="f-err" style="display:none"></div>'+
+   '<button class="wide" onclick="saveFly('+fid+')">Save fly</button><button class="alt wide" onclick="closeModal()">Cancel</button>');
+  var er=document.getElementById('f-err');
+  new MutationObserver(function(){er.style.display=er.textContent?'block':'none'}).observe(er,{childList:true});
+  applyFlyFilter();
+}
+function toggleCat(list,c){var i=list.indexOf(c);if(i>=0)list.splice(i,1);else list.push(c)}
+function applyFlyFilter(){
+  var cats=['All'];S.materials.forEach(function(m){if(cats.indexOf(m.cat)<0)cats.push(m.cat)});
+  flyCats=flyCats.filter(function(c){return cats.indexOf(c)>=0});
+  var ch=document.getElementById('fchips');
+  if(ch){
+    ch.innerHTML=cats.map(function(c,i){return '<button class="chip" data-i="'+i+'" aria-pressed="'+(i===0?flyCats.length===0:flyCats.indexOf(c)>=0)+'">'+esc(c)+'</button>'}).join('');
+    ch.querySelectorAll('button').forEach(function(b){b.onclick=function(){var i=parseInt(b.getAttribute('data-i'),10);if(i===0)flyCats=[];else toggleCat(flyCats,cats[i]);applyFlyFilter()}});
+  }
+  var q=flyQ.trim().toLowerCase();
+  document.querySelectorAll('.frow').forEach(function(r){
+    var inp=document.getElementById('rq-'+r.getAttribute('data-id'));
+    var filled=inp&&inp.value!=='';
+    var ok=(!flyCats.length||flyCats.indexOf(r.getAttribute('data-cat'))>=0)&&(!q||r.getAttribute('data-name').indexOf(q)>=0);
+    r.style.display=(filled||ok)?'':'none';
+  });
+}
+function openModal(html){document.getElementById('modal').innerHTML='<div class="sheet-bg" onclick="if(event.target===this)closeModal()"><div class="sheet" role="dialog" aria-modal="true">'+html+'</div></div>'}
+function closeModal(){document.getElementById('modal').innerHTML=''}
+function newOrderModal(){
+  openModal('<h3>New order</h3>'+
+   '<div><label for="o-shop">Which shop?</label><input id="o-shop" value="'+esc(S.shopName)+'"></div>'+
+   '<div><label for="o-fly">Which fly?</label><select id="o-fly">'+tieable().map(function(f){return '<option value="'+f.id+'">'+esc(f.name)+'</option>'}).join('')+'</select><div class="muted">Only flies you can tie are listed. Mark a fly as tied on the Flies tab to add it here.</div></div>'+
+   '<div><label for="o-qty">How many?</label><input id="o-qty" type="number" inputmode="numeric" value="12" min="1"></div>'+
+   '<button class="wide" onclick="addOrder()">Add order</button><button class="alt wide" onclick="closeModal()">Cancel</button>');
+}
+function orderModal(id){
+  var o=S.orders.filter(function(x){return x.id===id})[0],f=fly(o.fly);
+  var h='<h3>Edit order</h3>'+
+   '<div><label for="e-shop">Which shop?</label><input id="e-shop" value="'+esc(o.shop)+'"></div>';
+  if(o.status==='open'){
+    h+='<div><label for="e-fly">Which fly?</label><select id="e-fly">'+tieable(o.fly).map(function(x){return '<option value="'+x.id+'"'+(x.id===o.fly?' selected':'')+'>'+esc(x.name)+'</option>'}).join('')+'</select></div>'+
+       '<div><label for="e-qty">How many?</label><input id="e-qty" type="number" inputmode="numeric" min="1" value="'+o.qty+'"></div>';
+  }else{
+    h+='<div class="muted">'+o.qty+' '+esc(f.name)+' are already tied, so the fly and number are locked. Use "Put back" if you tied the wrong thing.</div>';
+  }
+  h+='<div><label for="e-date">Date</label><input id="e-date" type="date" value="'+esc(o.date)+'"></div>'+
+     '<button class="wide" onclick="saveOrder(\''+id+'\')">Save</button>';
+  if(o.status==='tied')h+='<button class="alt wide" onclick="undoTied(\''+id+'\')">Put back (not tied yet)</button>';
+  if(o.status==='open')h+='<button class="alt wide" onclick="delModal(\''+id+'\')">Delete order</button>';
+  h+='<button class="alt wide" onclick="closeModal()">Cancel</button>';
+  openModal(h);
+}
+function delModal(id){
+  openModal('<h3>Delete this order?</h3><div class="muted">Nothing has been taken off the shelf yet, so this just removes it from the list.</div>'+
+   '<button class="wide" onclick="deleteOrder(\''+id+'\')">Yes, delete it</button><button class="alt wide" onclick="closeModal()">No, keep it</button>');
+}
+function payModal(id){
+  var o=S.orders.filter(function(x){return x.id===id})[0],f=fly(o.fly);
+  var cost=flyCost(f)*o.qty,exp=f.price*o.qty;
+  openModal('<h3>Got paid for '+o.qty+' '+esc(f.name)+'</h3>'+
+   '<div class="muted">Supplies for this order cost '+$(cost)+'. That goes into the Restock jar first.</div>'+
+   '<div><label for="amt">How much did the shop pay?</label><input id="amt" type="number" inputmode="decimal" step="0.01" value="'+exp.toFixed(2)+'"></div>'+
+   '<button class="wide" onclick="payOrder(\''+id+'\')">Split it into the jars</button><button class="alt wide" onclick="closeModal()">Cancel</button>');
+}
+function spendModal(){
+  openModal('<h3>I spent money</h3><div class="muted">This comes out of the Spending jar.</div>'+
+   '<div><label for="sp-amt">How much?</label><input id="sp-amt" type="number" inputmode="decimal" step="0.01"></div>'+
+   '<div><label for="sp-note">What for?</label><input id="sp-note"></div>'+
+   '<button class="wide" onclick="spendMoney()">Save</button><button class="alt wide" onclick="closeModal()">Cancel</button>');
+}
+function countModal(id){
+  var m=mat(id);
+  openModal('<h3>Count: '+esc(m.name)+'</h3><div class="muted">Look at what is really in the bin and type the number.</div>'+
+   '<div><label for="cnt">How many do you have?</label><input id="cnt" type="number" inputmode="decimal" value="'+m.stock+'"></div>'+
+   '<button class="wide" onclick="setCount(\''+id+'\')">Save count</button><button class="alt wide" onclick="closeModal()">Cancel</button>');
+}
+function backupModal(){
+  openModal('<h3>Backup</h3><div class="muted">Copy this text and keep it somewhere safe (a note to yourself works). To restore, paste it in the second box.</div>'+
+   '<textarea id="bk" readonly onclick="this.select()">'+esc(JSON.stringify(S))+'</textarea>'+
+   '<button class="wide" onclick="copyBk()">Copy</button>'+
+   '<div><label for="rs">Restore from backup</label><textarea id="rs" placeholder="Paste backup text here"></textarea></div>'+
+   '<button class="alt wide" onclick="restoreBk()">Restore</button><button class="alt wide" onclick="closeModal()">Close</button>');
+}
+function copyBk(){var t=document.getElementById('bk');t.select();try{navigator.clipboard.writeText(t.value)}catch(e){}}
+function restoreBk(){
+  try{var d=JSON.parse(document.getElementById('rs').value);if(!d.materials||!d.flies||!d.orders||!d.ledger)throw 0;d.rev=(S.rev||0)+1;S=d;closeModal();commit('Restored.')}
+  catch(e){var t=document.getElementById('rs');t.value='';t.placeholder='That did not look like a backup. Paste the whole text.'}
+}
+function resetAll(){var r=S.rev||0;S=defaults();S.rev=r+1;closeModal();commit('Fresh start.')}
+function resetModal(){
+  openModal('<h3>Start over?</h3><div class="muted">This erases all orders, money and counts on this device.</div>'+
+   '<button class="wide" onclick="resetAll()">Yes, erase everything</button><button class="alt wide" onclick="closeModal()">No, keep it</button>');
+}
+
+/* ---------- screens ---------- */
+function homeView(){
+  var r=jar('restock'),sv=jar('save'),sp=jar('spend');
+  var paid=S.orders.filter(function(o){return o.status==='paid'});
+  var made=paid.reduce(function(t,o){return t+o.paid},0);
+  var open=S.orders.filter(function(o){return o.status==='open'}).length;
+  var tied=S.orders.filter(function(o){return o.status==='tied'}).length;
+  var need=neededForOpen(),shorts=S.materials.filter(function(m){return (need[m.id]||0)>m.stock});
+  var low=S.materials.filter(function(m){return m.stock<=m.packQty*0.2&&shorts.indexOf(m)<0});
+  var h='<div class="jars">'+
+   '<div class="jar restock"><small>Restock</small><span class="big">'+$(r)+'</span></div>'+
+   '<div class="jar save"><small>Savings</small><span class="big">'+$(sv)+'</span></div>'+
+   '<div class="jar spend"><small>Spending</small><span class="big">'+$(sp)+'</span></div></div>';
+  h+='<div class="card stack"><div class="row"><span class="muted">Shops have paid you</span><b>'+$(made)+'</b></div>'+
+     '<div class="row"><span class="muted">Orders to tie</span><b>'+open+'</b></div>'+
+     '<div class="row"><span class="muted">Waiting to get paid</span><b>'+tied+'</b></div></div>';
+  if(shorts.length){h+='<div class="alert">Not enough on the shelf for your open orders: '+shorts.map(function(m){return esc(m.name)}).join(', ')+'.</div>'}
+  if(low.length){h+='<div class="alert">Running low: '+low.map(function(m){return esc(m.name)}).join(', ')+'.</div>'}
+  if(!shorts.length&&!low.length){h+='<div class="okmsg">Shelf looks good.</div>'}
+  h+='<div class="row"><button class="wide" onclick="spendModal()">I spent money</button></div>';
+  var rows=S.ledger.slice(-8).reverse();
+  h+='<h2>Money history</h2>';
+  if(!rows.length){h+='<div class="card muted">Nothing yet. When a shop pays you, the money lands in the jars.</div>'}
+  else{h+='<div class="card"><table>'+rows.map(function(e){var nm={restock:'Restock',save:'Savings',spend:'Spending'}[e.b];return '<tr><td>'+esc(e.note)+'<div class="muted">'+nm+'</div></td><td style="color:'+(e.amt<0?'var(--warn)':'var(--good)')+'">'+(e.amt>0?'+':'')+$(e.amt)+'</td></tr>'}).join('')+'</table></div>'}
+  return h;
+}
+function ordersView(){
+  var h='<button class="wide" onclick="newOrderModal()">+ New order</button>';
+  var order={open:0,tied:1,paid:2};
+  var list=S.orders.slice().sort(function(a,b){return order[a.status]-order[b.status]});
+  if(!list.length)h+='<div class="card muted">No orders yet.</div>';
+  list.forEach(function(o){
+    var f=fly(o.fly);if(!f)return;
+    var cost=flyCost(f)*o.qty,est=f.price*o.qty;
+    var label={open:'To tie',tied:'Delivered, not paid',paid:'Paid'}[o.status];
+    h+='<div class="card stack"><div class="row"><b>'+o.qty+' &times; '+esc(f.name)+'</b><span class="pill '+o.status+'">'+label+'</span></div>'+
+       '<div class="muted">'+esc(o.shop)+' &middot; '+esc(o.date)+'</div>';
+    if(o.status==='paid'){h+='<div class="row"><span class="muted">Paid</span><b>'+$(o.paid)+'</b></div><div class="row"><span class="muted">You kept</span><b style="color:var(--good)">'+$(o.paid-cost)+'</b></div>'}
+    else{h+='<div class="row"><span class="muted">Supplies</span><b>'+$(cost)+'</b></div><div class="row"><span class="muted">Should earn</span><b>'+$(est)+'</b></div>'}
+    if(o.status==='open')h+='<button onclick="tieOrder(\''+o.id+'\')">I tied them</button>';
+    if(o.status==='tied')h+='<button onclick="payModal(\''+o.id+'\')">Got paid</button>';
+    if(o.status!=='paid')h+='<button class="alt small" onclick="orderModal(\''+o.id+'\')">Edit order</button>';
+    h+='</div>';
+  });
+  return h;
+}
+function shelfView(){
+  var need=neededForOpen();
+  var cats=['All'];S.materials.forEach(function(m){if(cats.indexOf(m.cat)<0)cats.push(m.cat)});
+  shelfCats=shelfCats.filter(function(c){return cats.indexOf(c)>=0});
+  var h='<button class="wide" onclick="materialModal(null)">+ New material</button>'+
+    '<div><label for="shelf-q">Find a material</label><input id="shelf-q" type="search" placeholder="Type a name, like #14 or tungsten" value="'+esc(shelfQ)+'" oninput="shelfQ=this.value;applyShelfFilter()"></div>'+
+    '<div class="chips" id="shelf-chips" role="group" aria-label="Filter by type">'+cats.map(function(c,i){return '<button class="chip" data-i="'+i+'" aria-pressed="'+(i===0?shelfCats.length===0:shelfCats.indexOf(c)>=0)+'">'+esc(c)+'</button>'}).join('')+'</div>'+
+    '<div class="muted">Tap a type to turn it on. Turn on more than one to see them together.</div><div class="muted" id="shelf-count"></div>';
+  S.materials.forEach(function(m){
+    var n=need[m.id]||0,short=n>m.stock,low=m.stock<=m.packQty*0.2;
+    var pct=Math.max(0,Math.min(100,m.stock/m.packQty*100));
+    h+='<div class="card stack mrow" data-cat="'+esc(m.cat)+'" data-name="'+esc((m.name+' '+m.cat).toLowerCase())+'"><div class="row"><div><b>'+esc(m.name)+'</b><div class="muted">'+esc(m.cat)+'</div></div><b>'+(Math.round(m.stock*10)/10)+'</b></div>'+
+      '<div class="bar'+((short||low)?' low':'')+'"><i style="width:'+pct+'%"></i></div>'+
+      (n?'<div class="muted">Open orders need '+n+'.'+(short?' <b style="color:var(--warn)">Short by '+(Math.round((n-m.stock)*10)/10)+'.</b>':'')+'</div>':'')+
+      '<div class="row"><button class="alt small" onclick="countModal(\''+m.id+'\')">Count it</button><button class="alt small" onclick="materialModal(\''+m.id+'\')">Edit</button>'+
+      '<button class="small" onclick="buyPack(\''+m.id+'\')">Bought a pack ('+$(m.packCost)+')</button></div></div>';
+  });
+  return h;
+}
+function fliesView(){
+  var h='<button class="wide" onclick="flyModal(null)">+ New fly</button><button class="alt wide" onclick="menuModal()">Show a shop my menu</button>'+
+    '<div class="chips" role="group" aria-label="Show flies">'+[['all','All flies'],['can','I can tie'],['learning','Still learning']].map(function(c){return '<button class="chip" aria-pressed="'+(flyShow===c[0])+'" onclick="flyShow=\''+c[0]+'\';render()">'+c[1]+'</button>'}).join('')+'</div>';
+  S.flies.filter(function(f){return flyShow==='all'||(flyShow==='can'?canTie(f):!canTie(f))}).forEach(function(f){
+    var c=flyCost(f),p=f.price-c;
+    h+='<div class="card stack"><div class="row"><h2 style="margin:0">'+esc(f.name)+'</h2><button class="alt small" onclick="flyModal(\''+f.id+'\')">Edit recipe</button></div>'+
+      '<div class="row"><span class="pill '+(canTie(f)?'paid':'')+'">'+(canTie(f)?'I can tie this':'Still learning')+'</span><button class="alt small" onclick="toggleCan(\''+f.id+'\')">'+(canTie(f)?'Move to still learning':'I can tie this now')+'</button></div>'+
+      '<div class="row"><span class="muted">Supplies per fly</span><b>'+$(c)+'</b></div>'+
+      '<div><label for="pr-'+f.id+'">You sell it for</label><input id="pr-'+f.id+'" type="number" inputmode="decimal" step="0.05" value="'+f.price.toFixed(2)+'" onchange="setPrice(\''+f.id+'\',this.value)"></div>'+
+      '<div class="row"><span class="muted">You keep per fly</span><b style="color:'+(p>=0?'var(--good)':'var(--warn)')+'">'+$(p)+'</b></div>'+
+      '<div class="muted">A dozen earns '+$(f.price*12)+' and keeps '+$(p*12)+'.</div>'+
+      '<div class="muted"><b>Recipe for one fly</b></div>'+
+      f.recipe.map(function(r){var m=mat(r[0]);return '<div class="recipe-line"><span class="nm">'+esc(m.name)+'<br><span class="muted">'+$(unit(m)*r[1])+'</span></span><input aria-label="Amount of '+esc(m.name)+'" type="number" inputmode="decimal" step="any" value="'+r[1]+'" onchange="setQty(\''+f.id+'\',\''+m.id+'\',this.value)"></div>'}).join('')+'</div>';
+  });
+  h+='<div class="card stack"><h2 style="margin:0">Savings jar</h2><div><label for="pct">Percent of profit you save</label><input id="pct" type="number" inputmode="numeric" value="'+S.savingsPct+'" onchange="setPct(this.value)"></div>'+
+     '<div class="muted">Profit is what the shop pays minus supplies. Supplies go to Restock first, then this percent goes to Savings, and the rest is yours to spend.</div></div>';
+  h+=syncCard();
+  h+='<button class="alt wide" onclick="backupModal()">Backup and restore</button><button class="alt wide" onclick="resetModal()">Start over</button>';
+  return h;
+}
+var ICON={
+ home:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>',
+ orders:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg>',
+ shelf:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18M5 20V9h5v11M12 20V5h7v15"/></svg>',
+ flies:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12c4-6 12-6 16 0-4 6-12 6-16 0z"/><circle cx="16" cy="11" r="1"/></svg>'
+};
+var TABS=[['home','Shop'],['orders','Orders'],['shelf','Shelf'],['flies','Flies']];
+function applyShelfFilter(){
+  var q=shelfQ.trim().toLowerCase(),rows=document.querySelectorAll('.mrow'),n=0;
+  rows.forEach(function(r){
+    var ok=(!shelfCats.length||shelfCats.indexOf(r.getAttribute('data-cat'))>=0)&&(!q||r.getAttribute('data-name').indexOf(q)>=0);
+    r.style.display=ok?'':'none';if(ok)n++;
+  });
+  var c=document.getElementById('shelf-count');if(c)c.textContent='Showing '+n+' of '+rows.length;
+}
+function wireShelfChips(){
+  var cats=['All'];S.materials.forEach(function(m){if(cats.indexOf(m.cat)<0)cats.push(m.cat)});
+  var ch=document.getElementById('shelf-chips');if(!ch)return;
+  ch.querySelectorAll('button').forEach(function(b){b.onclick=function(){var i=parseInt(b.getAttribute('data-i'),10);if(i===0)shelfCats=[];else toggleCat(shelfCats,cats[i]);ch.querySelectorAll('button').forEach(function(x,j){x.setAttribute('aria-pressed',j===0?shelfCats.length===0:shelfCats.indexOf(cats[j])>=0)});applyShelfFilter()}});
+}
+function render(){
+  var v={home:homeView,orders:ordersView,shelf:shelfView,flies:fliesView}[tab]();
+  var main=document.getElementById('main');
+  main.innerHTML=(toast?'<div class="okmsg" role="status">'+esc(toast)+'</div>':'')+v;
+  toast='';
+  if(tab==='shelf'){wireShelfChips();applyShelfFilter()}
+  document.getElementById('nav').innerHTML=TABS.map(function(t){return '<button onclick="go(\''+t[0]+'\')"'+(t[0]===tab?' aria-current="page"':'')+'>'+ICON[t[0]]+t[1]+'</button>'}).join('');
+}
+function go(t){tab=t;toast='';render();window.scrollTo(0,0)}
+
+/* ---------- sync (Firebase Realtime Database over plain REST) ---------- */
+var SYNC_KEY='chase-fly-shop-sync-v1', sync=null, busy=false, pushTimer=null, pollStarted=false;
+function loadSync(){try{var t=localStorage.getItem(SYNC_KEY);sync=t?JSON.parse(t):null}catch(e){sync=null}}
+function storeSync(){try{if(sync)localStorage.setItem(SYNC_KEY,JSON.stringify(sync));else localStorage.removeItem(SYNC_KEY)}catch(e){}}
+function syncEndpoint(){return sync.url.replace(/\/+$/,'')+'/shops/'+encodeURIComponent(sync.code)+'.json'}
+function tfetch(url,opts){
+  var c=new AbortController(),t=setTimeout(function(){c.abort()},8000);
+  opts=opts||{};opts.signal=c.signal;
+  return fetch(url,opts).then(function(r){clearTimeout(t);return r},function(e){clearTimeout(t);throw e});
+}
+function newer(a,b){var ar=a.rev||0,br=b.rev||0;if(ar!==br)return ar>br;return (a.updatedAt||0)>(b.updatedAt||0)}
+function timeStr(){return new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}
+var lastMsg='Connected';
+function setSyncMsg(m){if(m)lastMsg=m;var el=document.getElementById('syncline');if(el)el.textContent=sync?m:'';var el2=document.getElementById('syncstatus');if(el2)el2.textContent=m}
+function pushNow(){
+  if(!sync)return Promise.resolve();
+  var body=JSON.stringify({rev:S.rev||0,updatedAt:S.updatedAt||0,data:JSON.stringify(S)});
+  return tfetch(syncEndpoint(),{method:'PUT',headers:{'Content-Type':'application/json'},body:body}).then(function(r){
+    if(!r.ok)throw new Error('HTTP '+r.status);setSyncMsg('Synced '+timeStr());
+  }).catch(function(){setSyncMsg('Offline. Will sync when connected.')});
+}
+function schedulePush(){if(!sync)return;clearTimeout(pushTimer);pushTimer=setTimeout(pushNow,800)}
+function pull(){
+  if(!sync||busy)return Promise.resolve();
+  busy=true;
+  return tfetch(syncEndpoint()).then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}).then(function(remote){
+    if(!remote||!remote.data)return pushNow();
+    var rs=JSON.parse(remote.data);
+    if(newer(rs,S)){S=rs;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}render();setSyncMsg('Synced '+timeStr())}
+    else if(newer(S,rs)){return pushNow()}
+    else setSyncMsg('Synced '+timeStr());
+  }).catch(function(){setSyncMsg('Offline. Will sync when connected.')}).then(function(){busy=false});
+}
+function startSync(){
+  if(!sync||pollStarted)return;pollStarted=true;
+  setInterval(function(){if(!document.hidden)pull()},10000);
+  document.addEventListener('visibilitychange',function(){if(!document.hidden)pull()});
+  window.addEventListener('online',pull);
+}
+function parseSetupLink(t){
+  var i=t.indexOf('#sync=');if(i<0)return null;
+  try{var o=JSON.parse(atob(decodeURIComponent(t.slice(i+6).trim())));if(o.u&&o.c)return {url:o.u,code:o.c}}catch(e){}
+  return null;
+}
+function setupLink(){return location.origin+location.pathname+'#sync='+encodeURIComponent(btoa(JSON.stringify({u:sync.url,c:sync.code})))}
+function genCode(){
+  var a=new Uint8Array(16);crypto.getRandomValues(a);
+  var out='';a.forEach(function(b){out+=b.toString(36).slice(-2)});return out;
+}
+function connectSync(){
+  var link=document.getElementById('sy-link').value.trim();
+  var url,code,er=document.getElementById('sy-err');
+  var p=link?parseSetupLink(link):null;
+  if(link&&!p){er.textContent='That setup link did not look right. Copy the whole link.';er.style.display='block';return}
+  if(p){url=p.url;code=p.code}
+  else{url=document.getElementById('sy-url').value.trim();code=document.getElementById('sy-code').value.trim()}
+  if(!/^https:\/\/[^\s]+$/.test(url)||code.length<12){er.textContent='Enter the database address (starts with https://) and a shop code with at least 12 characters.';er.style.display='block';return}
+  sync={url:url,code:code};storeSync();startSync();
+  setSyncMsg('Connecting...');
+  pull().then(function(){render()});
+  render();
+}
+function disconnectSync(){sync=null;storeSync();setSyncMsg('');render()}
+function copySetupLink(){var t=document.getElementById('sy-share');t.select();try{navigator.clipboard.writeText(t.value)}catch(e){}}
+function syncCard(){
+  if(sync){
+    return '<div class="card stack"><h2 style="margin:0">Sync with Dad</h2><div class="okmsg" id="syncstatus">'+esc(lastMsg)+'</div>'+
+     '<div class="muted">Anyone with the setup link below can see and change this shop. Only share it with Dad.</div>'+
+     '<div><label for="sy-share">Setup link for another device</label><textarea id="sy-share" readonly onclick="this.select()">'+esc(setupLink())+'</textarea></div>'+
+     '<button class="alt wide" onclick="copySetupLink()">Copy setup link</button>'+
+     '<button class="alt wide" onclick="disconnectSync()">Turn off sync on this device</button></div>';
+  }
+  return '<div class="card stack"><h2 style="margin:0">Sync with Dad</h2>'+
+    '<div class="muted">Connect so Dad can see the shop on his phone or computer. Both devices show the same orders, shelf, and jars.</div>'+
+    '<div><label for="sy-link">Paste a setup link</label><textarea id="sy-link" placeholder="Paste the link Dad sent you"></textarea></div>'+
+    '<div class="muted">Or enter the details by hand:</div>'+
+    '<div><label for="sy-url">Database address</label><input id="sy-url" placeholder="https://your-project-default-rtdb.firebaseio.com"></div>'+
+    '<div><label for="sy-code">Shop code</label><input id="sy-code" placeholder="At least 12 letters and numbers"></div>'+
+    '<button class="alt wide" onclick="document.getElementById(\'sy-code\').value=genCode()">Make a new shop code</button>'+
+    '<div class="alert" id="sy-err" style="display:none"></div>'+
+    '<button class="wide" onclick="connectSync()">Connect</button></div>';
+}
+
+(function(){
+  if(location.hash.indexOf('#sync=')===0){var p=parseSetupLink(location.hash);if(p){sync=p;storeSync()}try{history.replaceState(null,'',location.pathname+location.search)}catch(e){}}
+})();
+if(!sync)loadSync();
+load();render();
+if(sync){setSyncMsg('Connecting...');startSync();pull()}
+if('serviceWorker' in navigator&&/^https?:/.test(location.protocol)){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}
+</script>
+</body>
+</html>
