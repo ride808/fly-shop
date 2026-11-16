@@ -68,6 +68,7 @@ label{display:block;font-weight:800;font-size:15px;margin-bottom:4px}
 .bar{height:14px;border-radius:99px;background:var(--line);overflow:hidden}
 .bar i{display:block;height:100%;background:var(--good);border-radius:99px}
 .bar.low i{background:var(--warn)}
+.btnlink{display:flex;align-items:center;justify-content:center;min-height:48px;border-radius:14px;background:var(--accent);color:var(--accent-ink);font-weight:800;text-decoration:none;padding:10px 16px}
 .fphoto{width:100%;max-height:200px;object-fit:cover;border-radius:12px;display:block}
 .alert{background:var(--warn-bg);color:var(--warn);border-radius:12px;padding:10px 12px;font-weight:700;font-size:15px}
 .okmsg{background:var(--good-bg);color:var(--good);border-radius:12px;padding:10px 12px;font-weight:700;font-size:15px}
@@ -86,9 +87,10 @@ nav button[aria-current="page"]{color:var(--accent)}
 table{width:100%;border-collapse:collapse;font-size:15px;font-variant-numeric:tabular-nums}
 td{padding:7px 0;border-bottom:1px solid var(--line)}
 td:last-child{text-align:right;font-weight:800}
-.chips{min-height:48px;display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
-.chip{flex:none;white-space:nowrap;min-height:40px;padding:6px 14px;font-size:15px;border-radius:99px;background:transparent;color:var(--ink);border:2px solid var(--line)}
-.chip[aria-pressed="true"]{background:var(--pine);color:var(--pine-ink);border-color:var(--pine)}
+.chips{min-height:48px;display:flex;gap:8px;overflow-x:auto;padding:3px}
+.chip{flex:none;white-space:nowrap;min-height:40px;padding:6px 14px;font-size:15px;border-radius:99px;background:transparent;color:var(--ink);border:2px solid transparent}
+.chip[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink);border-color:var(--ink);font-weight:800;box-shadow:0 0 0 2px var(--accent)}
+.chip[aria-pressed="true"]::before{content:"\2713\00a0"}
 textarea{font:13px/1.3 ui-monospace,monospace;width:100%;min-height:90px;border-radius:12px;border:2px solid var(--line);padding:10px;background:var(--card);color:var(--ink)}
 @media (prefers-reduced-motion:no-preference){button{transition:transform .08s}button:active{transform:scale(.97)}}
 </style>
@@ -145,6 +147,7 @@ function liveFlies(){return S.flies.filter(function(f){return !f.deleted})}
 function tieable(keepId){return liveFlies().filter(function(f){return canTie(f)||f.id===keepId})}
 function flyCost(f){return f.recipe.reduce(function(t,r){var m=mat(r[0]);return t+(m?unit(m)*r[1]:0)},0)}
 function jar(b){return S.ledger.filter(function(e){return e.b===b}).reduce(function(t,e){return t+e.amt},0)}
+function yours(){return jar('spend')+jar('save')}
 function addLedger(b,amt,note){S.ledger.push({b:b,amt:Math.round(amt*100)/100,note:note,d:today()})}
 function neededForOpen(){
   var need={};
@@ -168,11 +171,10 @@ function payOrder(id){
   var amt=parseFloat(document.getElementById('amt').value);
   if(isNaN(amt)||amt<0){return}
   var cost=flyCost(f)*o.qty,profit=amt-cost;
-  var sv=profit>0?profit*S.savingsPct/100:0;
+  var sv=0;
   o.status='paid';o.paid=amt;
   var note=o.qty+' '+f.name;
   addLedger('restock',cost,note);
-  addLedger('save',sv,note);
   addLedger('spend',profit-sv,note);
   closeModal();
   commit('');
@@ -268,6 +270,24 @@ function menuText(){
   if(lrn.length)t+='\nComing soon: '+lrn.map(function(f){return f.name}).join(', ')+'\n';
   return t;
 }
+function payLink(){var u=(S.payLink||'').trim();return /^https:\/\/[^\s"'<>]+$/i.test(u)?u:''}
+function payLinkBtn(cls){return payLink()?'<button class="'+(cls||'alt wide')+'" onclick="payLinkModal()">Pay Chase with Greenlight</button>':''}
+function payLinkModal(){
+  var u=payLink();if(!u)return;
+  openModal('<h3>Pay Chase</h3><div class="muted">Open the link to pay with Greenlight. You can also copy it and send it to the person paying.</div>'+
+   '<a class="btnlink" href="'+esc(u)+'" target="_blank" rel="noopener noreferrer">Open Greenlight pay link</a>'+
+   '<input id="pl-copy" readonly value="'+esc(u)+'" aria-label="Greenlight pay link" onfocus="this.select()">'+
+   '<button class="alt wide" onclick="copyPayLink()">Copy link</button>'+
+   '<div class="muted">After the shop pays, tap Got paid on the order so Chase can see it here.</div>'+
+   '<button class="alt wide" onclick="closeModal()">Close</button>');
+}
+function copyPayLink(){var t=document.getElementById('pl-copy');if(!t)return;t.select();try{navigator.clipboard.writeText(t.value)}catch(e){try{document.execCommand('copy')}catch(e2){}}}
+function setPayLink(v){v=(v||'').trim();if(v&&!/^https:\/\/[^\s"'<>]+$/i.test(v)){var er=document.getElementById('pay-err');if(er){er.textContent='The link needs to start with https://';er.style.display='block'}return}S.payLink=v;save();render()}
+function payLinkCard(){
+  return '<div class="card stack"><h2 style="margin:0">Greenlight pay link</h2><div class="muted">Paste the link a shop can use to pay Chase. It shows as a button on the Shop tab, on orders waiting to get paid, and on the menu.</div>'+
+   '<div><label for="pay-link">Pay link</label><input id="pay-link" type="url" inputmode="url" placeholder="https://" value="'+esc(S.payLink||'')+'" onchange="setPayLink(this.value)"></div>'+
+   '<div class="alert" id="pay-err" style="display:none"></div></div>';
+}
 function copyMenu(){var t=document.getElementById('menu-text');t.select();try{navigator.clipboard.writeText(t.value)}catch(e){}}
 function menuModal(){
   var can=liveFlies().filter(canTie),lrn=liveFlies().filter(function(f){return !canTie(f)});
@@ -278,20 +298,19 @@ function menuModal(){
   });
   if(lrn.length)h+='<div class="muted"><b>Coming soon:</b> '+lrn.map(function(f){return esc(f.name)}).join(', ')+'</div>';
   h+='<textarea id="menu-text" readonly style="position:absolute;left:-9999px">'+esc(menuText())+'</textarea>'+
-     '<button class="wide" onclick="copyMenu()">Copy menu as text</button><button class="alt wide" onclick="closeModal()">Close</button>';
+     payLinkBtn('wide')+'<button class="alt wide" onclick="copyMenu()">Copy menu as text</button><button class="alt wide" onclick="closeModal()">Close</button>';
   openModal(h);
 }
 function playHTML(f,price){
-  var c=flyCost(f),keep=price-c,mg=marginOf(price,c),mm=minMargin(),ok=mg>=mm-0.0001,pct=S.savingsPct||0;
-  var dz=12,earn=price*dz,sup=c*dz,prof=keep*dz,sav=prof>0?prof*pct/100:0,spend=prof>0?prof-sav:prof;
+  var c=flyCost(f),keep=price-c,mg=marginOf(price,c),mm=minMargin(),ok=mg>=mm-0.0001;
+  var dz=12,earn=price*dz,sup=c*dz,prof=keep*dz,spend=prof;
   return '<div class="row"><span class="muted">You keep per fly</span><b style="color:'+(keep>=0?'var(--good)':'var(--warn)')+'">'+$(keep)+'</b></div>'+
    '<div class="row"><span class="muted">Share of the sale you keep</span><b style="color:'+(ok?'var(--good)':'var(--warn)')+'">'+Math.round(mg)+'% <span class="muted">(want '+mm+'%+)</span></b></div>'+
    (ok?'':'<div class="alert">'+(keep<0?'That is less than your supplies cost. You lose money on every fly. ':'Below your minimum. ')+'Charge at least '+$(minPrice(f))+' to keep '+mm+'%.</div>')+
    '<div class="muted"><b>If you sell a dozen at this price</b></div>'+
    '<div class="row"><span class="muted">Shop pays you</span><b>'+$(earn)+'</b></div>'+
    '<div class="row"><span class="muted">Back to Restock (supplies)</span><b>'+$(sup)+'</b></div>'+
-   '<div class="row"><span class="muted">Into Savings ('+pct+'% of profit)</span><b>'+$(sav)+'</b></div>'+
-   '<div class="row"><span class="muted">Yours to spend</span><b>'+$(spend)+'</b></div>';
+   '<div class="row"><span class="muted">Your money</span><b>'+$(spend)+'</b></div>';
 }
 function playPrice(id,v){var f=fly(id),el=document.getElementById('pl-'+id);v=parseFloat(v);if(!f||!el)return;el.innerHTML=isNaN(v)||v<0?'<div class="muted">Type a price to see what it does.</div>':playHTML(f,v)}
 function refreshFly(f){var el=document.getElementById('pl-'+f.id),sp=document.getElementById('sup-'+f.id),pi=document.getElementById('pr-'+f.id),pv=pi?parseFloat(pi.value):f.price;if(sp)sp.textContent=$(flyCost(f));if(el)el.innerHTML=isNaN(pv)||pv<0?'':playHTML(f,pv)}
@@ -301,7 +320,6 @@ function setToMin(id){var f=fly(id);f.price=Math.ceil(minPrice(f)*20-0.0001)/20;
 function setPrice(id,v){var f=fly(id);v=parseFloat(v);if(!isNaN(v)&&v>=0){f.price=v;save();render()}}
 function setQty(fid,mid,v){var f=fly(fid);v=parseFloat(v);if(isNaN(v)||v<0)return;f.recipe.forEach(function(r){if(r[0]===mid)r[1]=v});save();render()}
 function setMinMargin(v){v=parseFloat(v);if(!isNaN(v)&&v>=0&&v<=90){S.minMargin=v;save();render()}}
-function setPct(v){v=parseFloat(v);if(!isNaN(v)&&v>=0&&v<=100){S.savingsPct=v;save();render()}}
 function setPack(id,k,v){v=parseFloat(v);if(isNaN(v)||v<=0)return;mat(id)[k]=v;save();render()}
 
 function saveMaterial(id){
@@ -527,7 +545,7 @@ function payModal(id){
   var o=S.orders.filter(function(x){return x.id===id})[0],f=fly(o.fly);
   var cost=flyCost(f)*o.qty,exp=orderPrice(o)*o.qty;
   openModal('<h3>Got paid for '+o.qty+' '+esc(f.name)+'</h3>'+
-   '<div class="muted">The money gets split into your jars. You can see them in the Office.</div>'+
+   '<div class="muted">The money goes to Restock and Your money. You can see them in the Office.</div>'+
    '<div><label for="amt">How much did the shop pay?</label><input id="amt" type="number" inputmode="decimal" step="0.01" value="'+exp.toFixed(2)+'" oninput="payWarn(\''+id+'\')"></div>'+
    '<div class="alert" id="pay-warn" style="display:none"></div>'+
    '<button class="wide" onclick="payOrder(\''+id+'\')">Split it into the jars</button><button class="alt wide" onclick="closeModal()">Cancel</button>');
@@ -544,7 +562,7 @@ function payWarn(id){
   }else{w.textContent='';w.style.display='none'}
 }
 function spendModal(){
-  openModal('<h3>I spent money</h3><div class="muted">This comes out of the Spending jar.</div>'+
+  openModal('<h3>I spent money</h3><div class="muted">This comes out of Your money.</div>'+
    '<div><label for="sp-amt">How much?</label><input id="sp-amt" type="number" inputmode="decimal" step="0.01"></div>'+
    '<div><label for="sp-note">What for?</label><input id="sp-note"></div>'+
    '<button class="wide" onclick="spendMoney()">Save</button><button class="alt wide" onclick="closeModal()">Cancel</button>');
@@ -589,7 +607,7 @@ function resetModal(){
 /* ---------- screens ---------- */
 
 /* ---------- Dad's corner (PIN) ---------- */
-var APP_VERSION='2026-11-16.10';
+var APP_VERSION='2026-11-16.13';
 var officeTab='money',dadUnlocked=false, PIN_KEY='chase-fly-shop-pin-v1';
 function getPin(){try{return localStorage.getItem(PIN_KEY)}catch(e){return null}}
 function pinFields(two){
@@ -690,7 +708,7 @@ function confetti(){
 function celebrate(o,f,amt,cost,profit,sv){
   var good=profit>=0;
   openModal('<div style="text-align:center"><h3>Paid!</h3><div class="big">'+$(amt)+'</div><div class="muted">from '+esc(o.shop)+' for '+o.qty+' '+esc(f.name)+'</div></div>'+
-   '<div class="muted" style="text-align:center">Your jars have been filled. Open the Office to see them.</div>'+
+   '<div class="muted" style="text-align:center">Restock and Your money are updated. Open the Office to see them.</div>'+
    '<button class="wide" onclick="closeModal()">Nice!</button>');
   if(good)confetti();
 }
@@ -737,7 +755,7 @@ function homeView(){
   var low=S.materials.filter(function(m){return m.stock<=m.packQty*0.2&&shorts.indexOf(m)<0});
   var ns=nextStep();
   var h='<div class="card stack" style="border:2px solid var(--accent)"><div class="muted" style="font-weight:800;text-transform:uppercase;letter-spacing:.4px;font-size:13px">Do this next</div><div class="big" style="font-size:24px">'+esc(ns.t)+'</div><div>'+esc(ns.b)+'</div><button onclick="'+ns.act.replace(/"/g,'&quot;')+'">'+esc(ns.btn)+'</button></div>';
-  h+='<button class="alt wide" onclick="menuModal()">Show a shop my menu</button>';
+  h+='<button class="alt wide" onclick="menuModal()">Show a shop my menu</button>'+payLinkBtn('alt wide');
   h+='<div class="card stack"><div class="row"><span class="muted">Flies tied so far</span><b>'+fliesTied()+'</b></div>'+
      '<div class="row"><span class="muted">Orders to tie</span><b>'+openN+'</b></div>'+
      '<div class="row"><span class="muted">Waiting to get paid</span><b>'+tiedN+'</b></div></div>';
@@ -746,14 +764,12 @@ function homeView(){
   return h;
 }
 function moneyContent(){
-  var r=jar('restock'),sv=jar('save'),sp=jar('spend');
+  var r=jar('restock'),y=yours();
   var made=S.orders.filter(function(o){return o.status==='paid'}).reduce(function(t,o){return t+o.paid},0);
   var h='<div class="jars">'+
+   '<div class="jar"><small>Shop pays you</small><span class="big">'+$(made)+'</span><span class="muted" style="font-size:13px">all together</span></div>'+
    '<div class="jar restock"><small>Restock</small><span class="big">'+$(r)+'</span><span class="muted" style="font-size:13px">for supplies</span></div>'+
-   '<div class="jar save"><small>Savings</small><span class="big">'+$(sv)+'</span><span class="muted" style="font-size:13px">for goals</span></div>'+
-   '<div class="jar spend"><small>Spending</small><span class="big">'+$(sp)+'</span><span class="muted" style="font-size:13px">yours</span></div></div>';
-  h+=goalCard();
-  h+='<div class="card stack"><div class="row"><span class="muted">Shops have paid you</span><b>'+$(made)+'</b></div></div>';
+   '<div class="jar spend"><small>Your money</small><span class="big">'+$(y)+'</span><span class="muted" style="font-size:13px">yours</span></div></div>';
   h+='<button class="alt wide" onclick="spendModal()">I spent money</button>';
   var paid=S.orders.filter(function(o){return o.status==='paid'&&fly(o.fly)}).slice(-6).reverse();
   h+='<h2>What each order kept</h2>';
@@ -762,7 +778,7 @@ function moneyContent(){
   var rows=S.ledger.slice(-8).reverse();
   h+='<h2>Money history</h2>';
   if(!rows.length){h+='<div class="card muted">Nothing yet. When a shop pays you, the money lands in the jars.</div>'}
-  else{h+='<div class="card"><table>'+rows.map(function(e){var nm={restock:'Restock',save:'Savings',spend:'Spending'}[e.b];return '<tr><td>'+esc(e.note)+'<div class="muted">'+nm+'</div></td><td style="color:'+(e.amt<0?'var(--warn)':'var(--good)')+'">'+(e.amt>0?'+':'')+$(e.amt)+'</td></tr>'}).join('')+'</table></div>'}
+  else{h+='<div class="card"><table>'+rows.map(function(e){var nm={restock:'Restock',save:'Your money',spend:'Your money'}[e.b];return '<tr><td>'+esc(e.note)+'<div class="muted">'+nm+'</div></td><td style="color:'+(e.amt<0?'var(--warn)':'var(--good)')+'">'+(e.amt>0?'+':'')+$(e.amt)+'</td></tr>'}).join('')+'</table></div>'}
   return h;
 }
 function ordersView(){
@@ -779,7 +795,7 @@ function ordersView(){
     if(o.status==='paid'){h+='<div class="row"><span class="muted">Paid</span><b>'+$(o.paid)+'</b></div>'}
     else{h+='<div class="row"><span class="muted">Price each</span><b>'+$(orderPrice(o))+'</b></div><div class="row"><span class="muted">Should earn</span><b>'+$(est)+'</b></div>'+(dw?'<div class="alert">'+esc(dw)+'</div>':'')}
     if(o.status==='open')h+='<button onclick="tieOrder(\''+o.id+'\')">I tied them</button>';
-    if(o.status==='tied')h+='<button onclick="payModal(\''+o.id+'\')">Got paid</button>';
+    if(o.status==='tied')h+='<button onclick="payModal(\''+o.id+'\')">Got paid</button>'+payLinkBtn('alt small');
     if(o.status!=='paid')h+='<button class="alt small" onclick="orderModal(\''+o.id+'\')">Edit order</button>';
     h+='</div>';
   });
@@ -820,8 +836,7 @@ function dadContent(){
   });
   h+='<div class="card stack"><h2 style="margin:0">Minimum margin</h2><div><label for="mm">Smallest share of each sale you want to keep (%)</label><input id="mm" type="number" inputmode="numeric" min="0" max="90" value="'+minMargin()+'" oninput="liveMargin(this.value)" onchange="setMinMargin(this.value)"></div>'+
      '<div class="muted">Margin is what is left of the price after supplies. At 50%, you charge at least double the supply cost. This only warns you. It never stops you from entering a price.</div></div>';
-  h+='<div class="card stack"><h2 style="margin:0">Savings jar</h2><div><label for="pct">Percent of profit you save</label><input id="pct" type="number" inputmode="numeric" value="'+S.savingsPct+'" onchange="setPct(this.value)"></div>'+
-     '<div class="muted">Profit is what the shop pays minus supplies. Supplies go to Restock first, then this percent goes to Savings, and the rest is yours to spend.</div></div>';
+  h+=payLinkCard();
   h+=syncCard();
   h+=appCard();
   h+='<button class="alt wide" onclick="backupModal()">Backup and restore</button><button class="alt wide" onclick="resetModal()">Start over</button>';
