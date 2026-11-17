@@ -180,7 +180,8 @@ function minPrice(f){return flyCost(f)/(1-minMargin()/100)}
 function marginOf(price,cost){return price>0?(price-cost)/price*100:0}
 function liveFlies(){return S.flies.filter(function(f){return !f.deleted})}
 function tieable(keepId){return liveFlies().filter(function(f){return canTie(f)||f.id===keepId})}
-function flyCost(f){return f.recipe.reduce(function(t,r){var m=mat(r[0]);return t+(m?unit(m)*r[1]:0)},0)}
+function smallOf(f){var v=parseFloat(f.small);return v>0?v:0}
+function flyCost(f){return f.recipe.reduce(function(t,r){var m=mat(r[0]);return t+(m?unit(m)*r[1]:0)},0)+smallOf(f)}
 function jar(b){return S.ledger.filter(function(e){return e.b===b}).reduce(function(t,e){return t+e.amt},0)}
 function yours(){return jar('spend')+jar('save')}
 function addLedger(b,amt,note){S.ledger.push({b:b,amt:Math.round(amt*100)/100,note:note,d:today()})}
@@ -522,37 +523,88 @@ function liveQty(fid,mid,v){var f=fly(fid);v=parseFloat(v);if(!f||isNaN(v)||v<0)
 function liveMargin(v){v=parseFloat(v);if(isNaN(v)||v<0||v>90)return;S.minMargin=v;liveFlies().forEach(refreshFly)}
 function setToMin(id){var f=fly(id);f.price=Math.ceil(minPrice(f)*20-0.0001)/20;save();render()}
 function setPrice(id,v){var f=fly(id);v=parseFloat(v);if(!isNaN(v)&&v>=0){f.price=v;save();render()}}
+function liveSmall(fid,v){var f=fly(fid);if(!f)return;v=parseFloat(v);f.small=(isNaN(v)||v<0)?0:v;refreshFly(f)}
+function setSmall(fid,v){var f=fly(fid);if(!f)return;v=parseFloat(v);if(isNaN(v)||v<0)v=0;if(v>0)f.small=Math.round(v*100)/100;else delete f.small;save();render()}
 function setQty(fid,mid,v){var f=fly(fid);v=parseFloat(v);if(isNaN(v)||v<0)return;f.recipe.forEach(function(r){if(r[0]===mid)r[1]=v});save();render()}
 function setLeadDays(v){v=parseInt(v,10);if(!isNaN(v)&&v>=1&&v<=60){S.leadDays=v;save();render()}}
 function setMinMargin(v){v=parseFloat(v);if(!isNaN(v)&&v>=0&&v<=90){S.minMargin=v;save();render()}}
 function setPack(id,k,v){v=parseFloat(v);if(isNaN(v)||v<=0)return;mat(id)[k]=v;save();render()}
 
+
+/* ---------- hook names built from parts ---------- */
+function isHookCat(c){return /^\s*hook\s*$/i.test(c||'')}
+function parseHookName(nm){
+  var p=parseFlyName(nm),toks=p.model.split(/\s+/).filter(Boolean),brand='',model=p.model;
+  if(toks.length>=2&&/^[A-Za-z][A-Za-z-]*$/.test(toks[0])){brand=toks[0];model=toks.slice(1).join(' ')}
+  return {style:p.type,brand:brand,model:model,size:p.size};
+}
+function buildHookName(h){return [h.style,h.brand,h.model,h.size?'#'+h.size:''].map(function(x){return (x||'').trim()}).filter(Boolean).join(' ')}
+function hookParts(m){return (m.model!=null||m.brand||m.style||m.size)?{style:m.style||'',brand:m.brand||'',model:m.model||'',size:m.size||''}:parseHookName(m.name)}
+function hookBlock(pfx,h,show){
+  return '<div id="'+pfx+'-hook" class="stack" style="display:'+(show?'flex':'none')+'">'+
+   '<div><label for="'+pfx+'-hstyle">Hook style</label><select id="'+pfx+'-hstyle" onchange="updHook(\''+pfx+'\')"><option value="">Choose a style</option>'+FLY_TYPES.map(function(t){return '<option'+(h.style===t?' selected':'')+'>'+t+'</option>'}).join('')+'</select></div>'+
+   '<div><label for="'+pfx+'-hbrand">Hook brand (example: TMC)</label><input id="'+pfx+'-hbrand" list="hbrands" value="'+esc(h.brand)+'" placeholder="TMC" oninput="updHook(\''+pfx+'\')"><datalist id="hbrands"><option value="TMC"><option value="Daiichi"><option value="Dai-Riki"><option value="Mustad"><option value="Gamakatsu"><option value="Umpqua"><option value="Partridge"></datalist></div>'+
+   '<div><label for="'+pfx+'-hmodel">Hook model number (example: 2487)</label><input id="'+pfx+'-hmodel" value="'+esc(h.model)+'" placeholder="2487" oninput="updHook(\''+pfx+'\')"></div>'+
+   '<div><label for="'+pfx+'-hsize">Hook size</label><select id="'+pfx+'-hsize" onchange="updHook(\''+pfx+'\')">'+sizeOpts(h.size)+'</select></div></div>';
+}
+function readHook(pfx){
+  var g=function(k){var e=document.getElementById(pfx+'-'+k);return (e&&e.value||'').trim()};
+  return {style:g('hstyle'),brand:g('hbrand'),model:g('hmodel'),size:g('hsize')};
+}
+function hookAny(h){return !!(h.style||h.brand||h.model||h.size)}
+function updHook(pfx){
+  var c=document.getElementById(pfx+'-cat'),w=document.getElementById(pfx+'-hook'),n=document.getElementById(pfx+'-name');
+  var isH=!!c&&isHookCat(c.value);
+  if(w)w.style.display=isH?'flex':'none';
+  if(!n)return;
+  n.readOnly=isH;n.placeholder=isH?'Made from the hook fields above':'Example: Pheasant tail fibers';
+  if(!isH)return;
+  var h=readHook(pfx);
+  if(!hookAny(h)&&n.value.trim()){
+    h=parseHookName(n.value);
+    var set=function(k,v){var e=document.getElementById(pfx+'-'+k);if(e)e.value=v};
+    set('hstyle',h.style);set('hbrand',h.brand);set('hmodel',h.model);
+    var z=document.getElementById(pfx+'-hsize');
+    if(z){if(h.size&&!Array.prototype.some.call(z.options||[],function(o){return o.value===h.size})){var op=document.createElement('option');op.value=h.size;op.textContent='#'+h.size;z.appendChild(op)}z.value=h.size}
+  }
+  var nm=buildHookName(h);if(nm)n.value=nm;
+}
+function setHook(m,h){
+  ['style','brand','model','size'].forEach(function(k){if(h&&h[k])m[k]=h[k];else delete m[k]});
+}
 function saveMaterial(id){
   var name=document.getElementById('m-name').value.trim();
   var cat=document.getElementById('m-cat').value.trim()||'Other';
   var cost=parseFloat(document.getElementById('m-cost').value);
   var qty=parseFloat(document.getElementById('m-qty').value);
   var unit=(document.getElementById('m-unit').value||'').trim();
+  var hk=isHookCat(cat)?readHook('m'):null;
+  if(hk&&hookAny(hk)){if(!hk.model){document.getElementById('m-err').textContent='Type the hook model number, like 2487.';return}name=buildHookName(hk)}else hk=null;
   if(!name||isNaN(cost)||cost<0||!(qty>0)){document.getElementById('m-err').textContent='Add a name, what the pack cost, and how many are in a pack.';return}
-  if(id){var m=mat(id);m.name=name;m.cat=cat;m.packCost=cost;m.packQty=qty;if(unit)m.unit=unit;else delete m.unit;closeModal();commit('Saved '+name+'.')}
+  if(id){var m=mat(id);m.name=name;m.cat=cat;setHook(m,hk);m.packCost=cost;m.packQty=qty;if(unit)m.unit=unit;else delete m.unit;closeModal();commit('Saved '+name+'.')}
   else{
     var have=parseFloat(document.getElementById('m-have').value);
-    var nm={id:'X'+(S.nextId++),cat:cat,name:name,packCost:cost,packQty:qty,stock:isNaN(have)?qty:have};if(unit)nm.unit=unit;S.materials.push(nm);
+    var nm={id:'X'+(S.nextId++),cat:cat,name:name,packCost:cost,packQty:qty,stock:isNaN(have)?qty:have};if(unit)nm.unit=unit;setHook(nm,hk);S.materials.push(nm);
     closeModal();commit('Added '+name+' to your tying materials.');
   }
 }
+function setParts(f,t,m,z){if(t)f.type=t;else delete f.type;if(m)f.model=m;else delete f.model;if(z)f.size=z;else delete f.size}
 function saveFly(id){
-  var name=document.getElementById('f-name').value.trim();
+  var tyEl=document.getElementById('f-type'),moEl=document.getElementById('f-model'),szEl=document.getElementById('f-size');
+  var fType=(tyEl&&tyEl.value)||'',fModel=((moEl&&moEl.value)||'').trim(),fSize=(szEl&&szEl.value)||'';
+  var name=(fType||fModel||fSize)?buildFlyName(fType,fModel,fSize):document.getElementById('f-name').value.trim();
+  if(!fModel&&(fType||fSize)){document.getElementById('f-err').textContent='Type a model number or pattern name, like TMC 2487.';return}
   var price=parseFloat(document.getElementById('f-price').value);
   var rec=[];var can=document.getElementById('f-can').value==='yes';
   var bad=false;
   S.materials.forEach(function(m){var el=document.getElementById('rq-'+m.id);if(!el)return;var q=parseFloat(el.value);if(q>0)rec.push([m.id,q]);else bad=true});
   if(!name||isNaN(price)||price<0||!rec.length){document.getElementById('f-err').textContent='Add a name, a price, and at least one material.';return}
   if(bad){document.getElementById('f-err').textContent='Type an amount for each material, or remove it.';return}
+  var smEl=document.getElementById('f-small'),small=smEl?parseFloat(smEl.value):0;if(isNaN(small)||small<0)small=0;
   var steps=parseSteps(document.getElementById('f-steps').value),link=(document.getElementById('f-link').value||'').trim();
   if(link&&!okLink(link)){document.getElementById('f-err').textContent='The link needs to start with https://';return}
-  if(id){var f=fly(id);f.name=name;f.price=price;f.recipe=rec;f.canTie=can;if(steps.length)f.steps=steps;else delete f.steps;if(link)f.link=link;else delete f.link;if(pendPhoto!==null){if(pendPhoto)f.photo=pendPhoto;else delete f.photo}closeModal();commit('Saved '+name+'.')}
-  else{var nf={id:'F'+(S.nextId++),name:name,price:price,recipe:rec,canTie:can};if(pendWish){S.wish=(S.wish||[]).filter(function(x){return x.id!==pendWish});pendWish=null}if(steps.length)nf.steps=steps;if(link)nf.link=link;if(pendPhoto)nf.photo=pendPhoto;S.flies.push(nf);closeModal();commit(can?'Added '+name+'. You can take orders for it.':'Added '+name+' as a fly you are still learning.')}
+  if(id){var f=fly(id);f.name=name;setParts(f,fType,fModel,fSize);f.price=price;f.recipe=rec;if(small>0)f.small=Math.round(small*100)/100;else delete f.small;f.canTie=can;if(steps.length)f.steps=steps;else delete f.steps;if(link)f.link=link;else delete f.link;if(pendPhoto!==null){if(pendPhoto)f.photo=pendPhoto;else delete f.photo}closeModal();commit('Saved '+name+'.')}
+  else{var nf={id:'F'+(S.nextId++),name:name,price:price,recipe:rec,canTie:can};if(small>0)nf.small=Math.round(small*100)/100;setParts(nf,fType,fModel,fSize);if(pendWish){S.wish=(S.wish||[]).filter(function(x){return x.id!==pendWish});pendWish=null}if(steps.length)nf.steps=steps;if(link)nf.link=link;if(pendPhoto)nf.photo=pendPhoto;S.flies.push(nf);closeModal();commit(can?'Added '+name+'. You can take orders for it.':'Added '+name+' as a fly you are still learning.')}
 }
 
 
@@ -630,10 +682,11 @@ function parseSteps(t){return String(t||'').split('\n').map(function(x){return x
 function okLink(u){return /^https:\/\/[^\s"'<>]+$/i.test(u)}
 function materialModal(id,copyOf){
   var m=id?mat(id):null,src=copyOf?mat(copyOf):null,v=m||src;
-  var cats=allCats();
+  var cats=allCats(),isH=!!v&&isHookCat(v.cat),hp=v&&isH?hookParts(v):{style:'',brand:'',model:'',size:''};
   openModal('<h3>'+(m?'Edit material':(src?'Copy of a material':'New material'))+'</h3>'+
-   '<div><label for="m-name">Name</label><input id="m-name" value="'+esc(v?v.name:'')+'" placeholder="Example: Pheasant tail fibers"></div>'+
-   '<div><label for="m-cat">Type</label><input id="m-cat" list="cats" value="'+esc(v?v.cat:'')+'" placeholder="Hook, bead, thread..." oninput="updUnitHint()"><datalist id="cats">'+cats.map(function(c){return '<option value="'+esc(c)+'">'}).join('')+'</datalist></div>'+
+   '<div><label for="m-cat">What kind of material is it?</label><input id="m-cat" list="cats" value="'+esc(v?v.cat:'')+'" placeholder="Hook, bead, thread..." oninput="updUnitHint();updHook(\'m\')" onchange="updHook(\'m\')"><datalist id="cats">'+cats.map(function(c){return '<option value="'+esc(c)+'">'}).join('')+'</datalist></div>'+
+   hookBlock('m',hp,isH)+
+   '<div><label for="m-name">'+(isH?'Name (made for you)':'Name')+'</label><input id="m-name" value="'+esc(v?v.name:'')+'" placeholder="Example: Pheasant tail fibers"'+(isH?' readonly style="font-weight:700"':'')+'></div>'+
    '<div><label for="m-cost">What did the pack cost?</label><input id="m-cost" type="number" inputmode="decimal" step="0.01" value="'+(v?v.packCost:'')+'"></div>'+
    '<div><label for="m-qty">How many are in the pack?</label><input id="m-qty" type="number" inputmode="decimal" step="any" value="'+(v?v.packQty:'')+'"></div>'+
    '<div><label for="m-unit">How you count it (optional)</label><input id="m-unit" list="units" value="'+esc(v?unitOf(v):'')+'" placeholder="Example: each, yards, inches"><datalist id="units"><option value="each"><option value="yards"><option value="inches"><option value="feathers"><option value="flies per pack"><option value="strands"><option value="square inches"></datalist></div>'+
@@ -645,13 +698,35 @@ function materialModal(id,copyOf){
   if(src){var nn=document.getElementById('m-name');if(nn){try{nn.focus();nn.select()}catch(e){}}}
   new MutationObserver(function(){er.style.display=er.textContent?'block':'none'}).observe(er,{childList:true});
 }
+var FLY_TYPES=['Nymph','Dry fly','Streamer','Wet fly','Emerger','Midge','Terrestrial'];
+function parseFlyName(nm){
+  nm=(nm||'').trim();var size='',type='',m=nm.match(/^(.*?)\s*#\s*(\d{1,2})$/);
+  if(m){nm=m[1].trim();size=m[2]}
+  var low=nm.toLowerCase();
+  FLY_TYPES.slice().sort(function(a,b){return b.length-a.length}).some(function(t){var tl=t.toLowerCase();if(low===tl||low.indexOf(tl+' ')===0){type=t;nm=nm.slice(t.length).trim();return true}return false});
+  return {type:type,model:nm,size:size};
+}
+function buildFlyName(t,m,sz){return [t,(m||'').trim(),sz?'#'+sz:''].filter(Boolean).join(' ')}
+function flyParts(f){return f.model!=null||f.type||f.size?{type:f.type||'',model:f.model||'',size:f.size||''}:parseFlyName(f.name)}
+function sizeOpts(cur){
+  var a=[];for(var i=6;i<=28;i+=2)a.push(String(i));
+  if(cur&&a.indexOf(String(cur))<0)a.push(String(cur));
+  a.sort(function(x,y){return x-y});
+  return '<option value="">No size</option>'+a.map(function(v){return '<option value="'+v+'"'+(String(cur)===v?' selected':'')+'>#'+v+'</option>'}).join('');
+}
+function updFlyName(){
+  var t=document.getElementById('f-type'),m=document.getElementById('f-model'),z=document.getElementById('f-size'),n=document.getElementById('f-name');
+  if(n)n.value=buildFlyName(t?t.value:'',m?m.value:'',z?z.value:'');
+}
 function readFlyDraft(){
   var q={};
   S.materials.forEach(function(m){var el=document.getElementById('rq-'+m.id);if(el)q[m.id]=el.value});
   var n=document.getElementById('f-name'),p=document.getElementById('f-price');
+  var ty=document.getElementById('f-type'),mo=document.getElementById('f-model'),sz=document.getElementById('f-size');
   var c=document.getElementById('f-can');
   var st=document.getElementById('f-steps'),lk=document.getElementById('f-link');
-  return {name:n?n.value:'',price:p?p.value:'',can:c?c.value:'',qty:q,steps:st?st.value:'',link:lk?lk.value:''};
+  var sm=document.getElementById('f-small');
+  return {name:n?n.value:'',price:p?p.value:'',can:c?c.value:'',qty:q,steps:st?st.value:'',link:lk?lk.value:'',small:sm?sm.value:'',type:ty?ty.value:'',model:mo?mo.value:'',size:sz?sz.value:''};
 }
 function addMaterialInline(fid){
   var name=document.getElementById('nm-name').value.trim();
@@ -660,10 +735,12 @@ function addMaterialInline(fid){
   var qty=parseFloat(document.getElementById('nm-qty').value);
   var have=parseFloat(document.getElementById('nm-have').value);
   var er=document.getElementById('nm-err');
+  var hk=isHookCat(cat)?readHook('nm'):null;
+  if(hk&&hookAny(hk)){if(!hk.model){er.textContent='Type the hook model number, like 2487.';er.style.display='block';return}name=buildHookName(hk)}else hk=null;
   if(!name||isNaN(cost)||cost<0||!(qty>0)){er.textContent='Add a name, what the pack cost, and how many are in a pack.';er.style.display='block';return}
   var draft=pickDraft||readFlyDraft();pickDraft=null;pickOrig={};
   var id='X'+(S.nextId++);
-  S.materials.push({id:id,cat:cat,name:name,packCost:cost,packQty:qty,stock:isNaN(have)?qty:have});
+  var nmat={id:id,cat:cat,name:name,packCost:cost,packQty:qty,stock:isNaN(have)?qty:have};setHook(nmat,hk);S.materials.push(nmat);
   draft.qty[id]='1';
   save();
   flyModal(fid,draft);
@@ -703,17 +780,22 @@ function flyModal(id,draft){
   var f=id?fly(id):null;
   var qtyOf={};
   if(draft){qtyOf=draft.qty}else if(f){f.recipe.forEach(function(r){qtyOf[r[0]]=r[1]})}
-  var nameV=draft?draft.name:(f?f.name:'');
+  var parts=draft?(draft.model!=null?{type:draft.type||'',model:draft.model,size:draft.size||''}:parseFlyName(draft.name)):(f?flyParts(f):{type:'',model:'',size:''});
+  var nameV=buildFlyName(parts.type,parts.model,parts.size);
   var stepsV=draft?draft.steps:(f&&f.steps?f.steps.join('\n'):'');
   var linkV=draft?draft.link:(f&&f.link?f.link:'');
   var priceV=draft?draft.price:(f?f.price.toFixed(2):'');
+  var smallV=draft?(draft.small||''):(f&&smallOf(f)?smallOf(f).toFixed(2):'');
   var canV=draft&&draft.can?draft.can:(f?(canTie(f)?'yes':'no'):'no');
   var cats=allCats();
   var fid=id?'\''+id+'\'':'null';
   var recIds=Object.keys(qtyOf).filter(function(k){return mat(k)});
   if(!draft){flyCats=[];flyQ='';pendPhoto=null;pendWish=null}
   openModal('<h3>'+(f?'Edit fly':'New fly')+'</h3>'+
-   '<div><label for="f-name">Fly name</label><input id="f-name" value="'+esc(nameV)+'" placeholder="Example: Zebra Midge #18"></div>'+
+   '<div><label for="f-type">Type of fly</label><select id="f-type" onchange="updFlyName()"><option value="">Choose a type</option>'+FLY_TYPES.map(function(t){return '<option'+(parts.type===t?' selected':'')+'>'+t+'</option>'}).join('')+'</select></div>'+
+   '<div><label for="f-model">Model number or pattern name</label><input id="f-model" value="'+esc(parts.model)+'" placeholder="Example: TMC 2487" oninput="updFlyName()"></div>'+
+   '<div><label for="f-size">Hook size</label><select id="f-size" onchange="updFlyName()">'+sizeOpts(parts.size)+'</select></div>'+
+   '<div><label for="f-name">Name (made for you)</label><input id="f-name" value="'+esc(nameV)+'" readonly style="font-weight:700"></div>'+
    '<div><label for="f-price">What the shop pays per fly</label><input id="f-price" type="number" inputmode="decimal" step="0.05" value="'+esc(priceV)+'"></div>'+
    '<div><label for="f-can">Can you tie this fly yet?</label><select id="f-can"><option value="yes"'+(canV==='yes'?' selected':'')+'>Yes, I can tie it</option><option value="no"'+(canV==='no'?' selected':'')+'>Not yet, still learning</option></select></div>'+
    '<div><label for="f-photo">Photo of the fly</label><input id="f-photo" type="file" accept="image/*" onchange="photoPick(this,'+fid+')"><div id="f-photo-prev" class="stack" style="margin-top:8px">'+photoPrev(f)+'</div></div>'+
@@ -723,6 +805,7 @@ function flyModal(id,draft){
    '<div id="f-mats"><b>Materials in this fly ('+recIds.length+')</b><div class="muted">This is what goes into ONE fly. Type how many of each. Swipe a material left to remove it, or tap the x.</div></div>'+
    '<button class="wide" onclick="openPicker('+fid+')">+ Add materials</button>'+
    (recIds.length?recIds.map(function(mid){var m=mat(mid);return '<div class="swipe" data-id="'+m.id+'"><div class="recipe-line frow"><label class="nm" for="rq-'+m.id+'" style="margin:0;font-weight:700">'+esc(m.name)+'<br><span class="muted">'+esc(m.cat)+(m.unit?' &middot; '+esc(m.unit):'')+'</span></label><input id="rq-'+m.id+'" type="number" inputmode="decimal" step="any" placeholder="0" value="'+esc(qtyOf[m.id])+'"><button class="alt small" aria-label="Remove '+esc(m.name)+'" onclick="removeFromRecipe(\''+m.id+'\','+fid+')">&times;</button></div></div>'}).join(''):'<div class="card muted">No materials yet. Tap Add materials above.</div>')+
+   '<div><label for="f-small">Small supplies per fly, in dollars (thread, glue, dubbing)</label><input id="f-small" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.05" value="'+esc(smallV)+'"><div class="muted">Skip measuring these. Type a few cents for all the thread and glue in one fly. Only list a material above if you want to count it exactly, like hooks and beads.</div></div>'+
    '<div class="alert" id="f-err" style="display:none"></div>'+
    '<button class="wide" onclick="saveFly('+fid+')">Save fly</button>'+(f?'<button class="alt wide" onclick="dupFly(\''+f.id+'\')">Duplicate as another size</button><button class="alt wide" onclick="delFlyModal(\''+f.id+'\')">Delete this fly</button>':'')+'<button class="alt wide" onclick="closeModal()">Cancel</button>');
   var er=document.getElementById('f-err');
@@ -750,8 +833,9 @@ function pickerModal(){
    '<div class="muted" id="f-count"></div>'+
    '<button class="alt wide" id="nm-open" onclick="openNewMat()">+ New material</button>'+
    '<div class="card stack" id="nm-box" style="display:none"><b>Add a new material</b>'+
+    '<div><label for="nm-cat">What kind of material is it?</label><input id="nm-cat" list="nm-cats" placeholder="Hook, bead, thread..." oninput="updHook(\'nm\')" onchange="updHook(\'nm\')"><datalist id="nm-cats">'+cats.map(function(c){return '<option value="'+esc(c)+'">'}).join('')+'</datalist></div>'+
+    hookBlock('nm',{style:'',brand:'',model:'',size:''},false)+
     '<div><label for="nm-name">Name</label><input id="nm-name" placeholder="Example: Pheasant tail fibers"></div>'+
-    '<div><label for="nm-cat">Type</label><input id="nm-cat" list="nm-cats" placeholder="Hook, bead, thread..."><datalist id="nm-cats">'+cats.map(function(c){return '<option value="'+esc(c)+'">'}).join('')+'</datalist></div>'+
     '<div><label for="nm-cost">What did the pack cost?</label><input id="nm-cost" type="number" inputmode="decimal" step="0.01"></div>'+
     '<div><label for="nm-qty">How many are in the pack?</label><input id="nm-qty" type="number" inputmode="decimal" step="any"></div>'+
     '<div><label for="nm-have">How many do you have now?</label><input id="nm-have" type="number" inputmode="decimal" step="any" placeholder="Leave blank for a full pack"></div>'+
@@ -793,9 +877,9 @@ function flyReopen(id,draft,top){flyModal(id,draft);var el=document.querySelecto
 function dupFly(id){
   var f=fly(id);if(!f)return;
   var q={};f.recipe.forEach(function(r){if(mat(r[0]))q[r[0]]=String(r[1])});
-  var nm=f.name+' (copy)';
+  var fp=flyParts(f);
   flyCats=[];flyQ='';pendWish=null;pendPhoto=f.photo||null;
-  flyModal(null,{name:nm,price:f.price.toFixed(2),can:canTie(f)?'yes':'no',qty:q,steps:(f.steps||[]).join('\n'),link:f.link||''});
+  flyModal(null,{name:f.name+' (copy)',type:fp.type,model:fp.model+' (copy)',size:fp.size,price:f.price.toFixed(2),can:canTie(f)?'yes':'no',qty:q,steps:(f.steps||[]).join('\n'),link:f.link||'',small:smallOf(f)?smallOf(f).toFixed(2):''});
 }
 function removeFromRecipe(mid,id){var d=readFlyDraft(),t=flyTop();delete d.qty[mid];flyReopen(id,d,t)}
 function addToRecipe(mid,id){var d=readFlyDraft(),t=flyTop();if(d.qty[mid]===undefined)d.qty[mid]='1';flyReopen(id,d,t)}
@@ -974,7 +1058,7 @@ function resetModal(){
 /* ---------- screens ---------- */
 
 /* ---------- Dad's corner (PIN) ---------- */
-var APP_VERSION='2026-11-16.45';
+var APP_VERSION='2026-11-16.48';
 var officeTab='money',dadUnlocked=false,dadUntil=0, PIN_KEY='chase-fly-shop-pin-v1';
 var LOCK_KEY='chase-fly-shop-lockmode-v1', OPEN_KEY='chase-fly-shop-open-v1';
 function lockMode(){try{var v=localStorage.getItem(LOCK_KEY);return (v==='3'||v==='open')?v:'30'}catch(e){return '30'}}
@@ -1356,6 +1440,7 @@ function flyDetailHTML(f){
     '<div class="card stack"><h2 style="margin:0">Costs</h2><div class="row"><span class="muted">Supplies per fly</span><b id="sup-'+f.id+'">'+$(c)+'</b></div>'+
     '<div class="muted">What goes into one fly. Change an amount to see the price and margin move.</div>'+
     f.recipe.filter(function(r){return mat(r[0])}).map(function(r){var m=mat(r[0]);return '<div class="recipe-line"><span class="nm">'+esc(m.name)+'<br><span class="muted">'+esc(m.cat)+' &middot; '+$(unit(m))+' each</span></span><input aria-label="Amount of '+esc(m.name)+'" type="number" inputmode="decimal" step="any" value="'+r[1]+'" oninput="liveQty(\''+f.id+'\',\''+m.id+'\',this.value)" onchange="setQty(\''+f.id+'\',\''+m.id+'\',this.value)"></div>'}).join('')+
+    '<div class="recipe-line"><span class="nm">Small supplies<br><span class="muted">Thread, glue, dubbing. Dollars per fly.</span></span><input aria-label="Small supplies per fly in dollars" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" value="'+(smallOf(f)?smallOf(f).toFixed(2):'')+'" oninput="liveSmall(\''+f.id+'\',this.value)" onchange="setSmall(\''+f.id+'\',this.value)"></div>'+
     '<button class="alt small" onclick="flyModal(\''+f.id+'\')">Add or remove materials</button></div>';
   return h;
 }

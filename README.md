@@ -10,6 +10,9 @@ A phone-first shop manager for Chase's hand-tied flies. It tracks orders, tying 
 - **Orders:** new orders with a negotiated price per fly, "I tied them", and "Got paid". Paid orders are tucked under "Show paid orders". A paid order can be taken back with "Fix this payment".
 - **Tying Materials:** what is in stock, searchable, with type filters. Count it, add a new material, and "Bought a pack".
 - **Flies:** the fly menu with photos and prices, and a **Fly wishlist** of flies Chase wants to learn (with notes and a link). "Make it a recipe" turns an idea into a new fly and removes it from the wishlist when saved. "See recipe" shows the materials per fly and per dozen, numbered tying steps Chase can tap to check off, and a link to a video or page.
+- **Small supplies (Office > Flies):** each fly has an optional flat dollar amount per fly for thread, glue and dubbing, so recipes only need exact counts for hooks, beads and other pricey parts. It is added into the fly's supplies cost, margin and profit per dozen. Edit it in a fly's detail view or in Edit fly.
+- **Fly names are built from parts:** the fly form has Type of fly (Nymph, Dry fly, Streamer, Wet fly, Emerger, Midge, Terrestrial), Model number or pattern name, and Hook size. They make the name, like `Nymph TMC 2487 #14`. Older flies are split into the parts automatically when opened for edit.
+- **Hook names are built from parts too:** when a material's kind is Hook, the form shows Hook style, Hook brand (like TMC), Hook model number (like 2487) and Hook size, and makes the name, like `Nymph TMC 2487 #14`. Same in the "+ New material" box inside the recipe picker. Existing hook names are split into the parts when you open them to edit.
 
 **Office** (Money, Flies, Shops and Settings. PIN protected. Stays open for 3 minutes after you last look at it, so you can hop between tabs. Locks right away if the app is closed or put in the background, or when you tap Lock):
 
