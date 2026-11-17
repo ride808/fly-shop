@@ -75,7 +75,7 @@ button.flyrow{display:flex;align-items:center;gap:12px;width:100%;text-align:lef
 .fthumb{width:56px;height:56px;border-radius:12px;object-fit:cover;flex:none;background:var(--line)}
 .fthumb.ph{display:flex;align-items:center;justify-content:center;color:var(--muted)}.fthumb.ph svg{width:28px;height:28px}
 .fmain{flex:1;min-width:0}.fmain b{display:block;font-size:17px;font-weight:800;overflow-wrap:anywhere}
-.mpill{font-weight:800;border-radius:99px;padding:4px 10px;font-size:14px;flex:none}.mpill.ok{background:var(--good-bg);color:var(--good)}.mpill.low{background:var(--warn-bg);color:var(--warn)}
+.mpill{display:flex;flex-direction:column;align-items:center;line-height:1.15;border-radius:12px;padding:5px 10px;flex:none}.mpill b{font-size:16px;font-weight:800}.mpill small{font-size:11px;font-weight:700;opacity:.85}.mpill.ok{background:var(--good-bg);color:var(--good)}.mpill.low{background:var(--warn-bg);color:var(--warn)}
 .chev{color:var(--muted);font-size:24px;flex:none}
 .btnlink.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}.btnlink.small{min-height:40px;padding:8px 14px;font-size:15px}.shoplinks{display:flex;flex-wrap:wrap;gap:8px}
 .age{display:flex;flex-direction:column;gap:6px}.age .bar{height:10px}.age b{font-size:14px}.age.mid b{color:var(--amber)}.age.mid .bar i{background:var(--amber)}.age.old b{color:var(--warn)}.age.old .bar i{background:var(--warn)}
@@ -306,6 +306,7 @@ function deleteFly(id){
   if(used)f.deleted=true;else S.flies=S.flies.filter(function(x){return x.id!==id});
   closeModal();commit('Deleted '+name+'.');
 }
+function toggleCanFromModal(id){closeModal();toggleCan(id)}
 function toggleCan(id){var f=fly(id);f.canTie=!canTie(f);commit(f.canTie?f.name+' is now on your menu.':f.name+' moved to still learning.')}
 function menuText(){
   var can=liveFlies().filter(canTie),lrn=liveFlies().filter(function(f){return !canTie(f)});
@@ -489,6 +490,7 @@ function recipeModal(id){
    '<div class="card"><table><tr><td class="muted">Material</td><td class="muted">One fly</td><td class="muted">A dozen</td></tr>'+rows+'</table></div>'+
    ((f.steps&&f.steps.length)?'<div><b>How to tie it</b><div class="muted">Tap a step when you finish it.</div></div><ol class="steps">'+f.steps.map(function(t){return '<li onclick="this.classList.toggle(\'done\')">'+esc(t)+'</li>'}).join('')+'</ol>':'<div class="muted">No tying steps yet. Add them in the Office, under Flies.</div>')+
    ((f.link&&okLink(f.link))?'<a class="btnlink" href="'+esc(f.link)+'" target="_blank" rel="noopener noreferrer">Open the video or page</a>':'')+
+   '<button class="alt wide" onclick="toggleCanFromModal(\''+f.id+'\')">'+(canTie(f)?'Move to still learning':'I can tie this now')+'</button>'+
    '<button class="alt wide" onclick="closeModal()">Close</button>');
 }
 function menuModal(){
@@ -972,7 +974,7 @@ function resetModal(){
 /* ---------- screens ---------- */
 
 /* ---------- Dad's corner (PIN) ---------- */
-var APP_VERSION='2026-11-16.42';
+var APP_VERSION='2026-11-16.45';
 var officeTab='money',dadUnlocked=false,dadUntil=0, PIN_KEY='chase-fly-shop-pin-v1';
 var LOCK_KEY='chase-fly-shop-lockmode-v1', OPEN_KEY='chase-fly-shop-open-v1';
 function lockMode(){try{var v=localStorage.getItem(LOCK_KEY);return (v==='3'||v==='open')?v:'30'}catch(e){return '30'}}
@@ -1215,9 +1217,9 @@ function fliesView(){
   var list=liveFlies().filter(function(f){return flyShow==='all'||(flyShow==='can'?canTie(f):!canTie(f))});
   if(!list.length)h+='<div class="card muted">'+(S.flies.length?'Nothing here.':'No flies yet. Add one in the Office (Flies).')+'</div>';
   list.forEach(function(f){
-    h+='<div class="card stack">'+photoImg(f)+'<div class="row"><b style="font-size:19px">'+esc(f.name)+'</b><span class="pill '+(canTie(f)?'paid':'')+'">'+(canTie(f)?'I can tie this':'Still learning')+'</span></div>'+
-      '<div class="row"><span class="muted">Shop pays</span><b>'+$(f.price)+' each</b></div><div class="muted">'+$(f.price*12)+' per dozen</div>'+
-      '<div class="row"><button class="small" onclick="recipeModal(\''+f.id+'\')">See recipe</button><button class="alt small" onclick="toggleCan(\''+f.id+'\')">'+(canTie(f)?'Move to still learning':'I can tie this now')+'</button></div></div>';
+    h+='<button class="flyrow" onclick="recipeModal(\''+f.id+'\')" aria-label="'+esc(f.name)+', open recipe">'+flyThumb(f)+
+      '<span class="fmain"><b>'+esc(f.name)+'</b><span class="muted">Shop pays '+$(f.price)+' each &middot; '+$(f.price*12)+' per dozen</span></span>'+
+      '<span class="pill '+(canTie(f)?'paid':'')+'">'+(canTie(f)?'I can tie':'Learning')+'</span><span class="chev" aria-hidden="true">&rsaquo;</span></button>';
   });
   return h;
 }
@@ -1335,10 +1337,10 @@ function flyThumb(f){
   return '<div class="fthumb ph" aria-hidden="true">'+ICON.flies+'</div>';
 }
 function flyRow(f){
-  var c=flyCost(f),mg=marginOf(f.price,c),ok=mg>=minMargin()-0.0001;
+  var c=flyCost(f),keep=f.price-c,mg=marginOf(f.price,c),ok=mg>=minMargin()-0.0001;
   return '<button class="flyrow" onclick="openFlyDetail(\''+f.id+'\')" aria-label="'+esc(f.name)+', open details">'+flyThumb(f)+
     '<span class="fmain"><b>'+esc(f.name)+'</b><span class="muted">Sells '+$(f.price)+' &middot; supplies '+$(c)+(canTie(f)?'':' &middot; learning')+'</span></span>'+
-    '<span class="mpill '+(ok?'ok':'low')+'">'+Math.round(mg)+'%</span><span class="chev" aria-hidden="true">&rsaquo;</span></button>';
+    '<span class="mpill '+(ok?'ok':'low')+'"><b>'+$(keep*12)+'</b><small>per dozen</small></span><span class="chev" aria-hidden="true">&rsaquo;</span></button>';
 }
 function openFlyDetail(id){officeFlyId=id;render();window.scrollTo(0,0)}
 function closeFlyDetail(){officeFlyId=null;render();window.scrollTo(0,0)}
@@ -1361,19 +1363,19 @@ function fliesAdminContent(){
   if(officeFlyId){var f0=fly(officeFlyId);if(f0&&!f0.deleted)return flyDetailHTML(f0);officeFlyId=null}
   var h='<button class="wide" onclick="flyModal(null)">+ New fly</button><button class="alt wide" onclick="menuModal()">Show a shop my menu</button>'+wishBtn()+
     '<div class="chips" role="group" aria-label="Show flies">'+[['all','All flies'],['can','I can tie'],['learning','Still learning']].map(function(c){return '<button class="chip" aria-pressed="'+(flyShow===c[0])+'" onclick="flyShow=\''+c[0]+'\';render()">'+c[1]+'</button>'}).join('')+'</div>'+
-    '<div class="muted">Tap a fly to see its costs and try different prices. The pill is the share of each sale you keep.</div>';
+    '<div class="muted">Tap a fly to see its costs and try different prices. The number on the right is what you keep from a dozen. It turns red when the share you keep drops below your minimum.</div>';
   var list=liveFlies().filter(function(f){return flyShow==='all'||(flyShow==='can'?canTie(f):!canTie(f))});
   if(!list.length)h+='<div class="card muted">No flies here yet.</div>';
   list.forEach(function(f){h+=flyRow(f)});
-  h+='<div class="card stack"><h2 style="margin:0">Minimum margin</h2><div><label for="mm">Smallest share of each sale you want to keep (%)</label><input id="mm" type="number" inputmode="numeric" min="0" max="90" value="'+minMargin()+'" oninput="liveMargin(this.value)" onchange="setMinMargin(this.value)"></div>'+
-     '<div class="muted">Margin is what is left of the price after supplies. At 50%, you charge at least double the supply cost. This only warns you. It never stops you from entering a price.</div></div>';
-  h+='<div class="card stack"><h2 style="margin:0">Delivery time</h2><div><label for="ld">Days you promise a shop to deliver an order</label><input id="ld" type="number" inputmode="numeric" min="1" max="60" value="'+leadDays()+'" onchange="setLeadDays(this.value)"></div>'+
-     '<div class="muted">Each order that still needs tying shows a countdown. Green means plenty of time. Yellow means it is due soon. Red means it is late, so tie it next. A week is a safe promise.</div></div>';
   return h;
 }
 function settingsContent(){
   var h='<button class="alt wide" onclick="helpModal()">How this app works</button>';
   h+=payLinkCard();
+  h+='<div class="card stack"><h2 style="margin:0">Minimum margin</h2><div><label for="mm">Smallest share of each sale you want to keep (%)</label><input id="mm" type="number" inputmode="numeric" min="0" max="90" value="'+minMargin()+'" oninput="liveMargin(this.value)" onchange="setMinMargin(this.value)"></div>'+
+     '<div class="muted">Margin is what is left of the price after supplies. At 50%, you charge at least double the supply cost. This only warns you. It never stops you from entering a price.</div></div>';
+  h+='<div class="card stack"><h2 style="margin:0">Delivery time</h2><div><label for="ld">Days you promise a shop to deliver an order</label><input id="ld" type="number" inputmode="numeric" min="1" max="60" value="'+leadDays()+'" onchange="setLeadDays(this.value)"></div>'+
+     '<div class="muted">Each order that still needs tying shows a countdown. Green means plenty of time. Yellow means it is due soon. Red means it is late, so tie it next. A week is a safe promise.</div></div>';
   h+=lockCard();
   h+=syncCard();
   h+=appCard();
