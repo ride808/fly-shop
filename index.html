@@ -70,6 +70,7 @@ label{display:block;font-weight:800;font-size:15px;margin-bottom:4px}
 .pill.bad{background:var(--warn);color:#fff}
 .bar{height:14px;border-radius:99px;background:var(--line);overflow:hidden}
 .bar i{display:block;height:100%;background:var(--good);border-radius:99px}
+.btnlink.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}.btnlink.small{min-height:40px;padding:8px 14px;font-size:15px}.shoplinks{display:flex;flex-wrap:wrap;gap:8px}
 .age{display:flex;flex-direction:column;gap:6px}.age .bar{height:10px}.age b{font-size:14px}.age.mid b{color:var(--amber)}.age.mid .bar i{background:var(--amber)}.age.old b{color:var(--warn)}.age.old .bar i{background:var(--warn)}
 .bar.low i{background:var(--warn)}
 .btnlink{display:flex;align-items:center;justify-content:center;min-height:48px;border-radius:14px;background:var(--accent);color:var(--accent-ink);font-weight:800;text-decoration:none;padding:10px 16px}
@@ -248,7 +249,7 @@ function flyChanged(selId,priceId,warnId){
 }
 function saveOrder(id){
   var o=S.orders.filter(function(x){return x.id===id})[0];
-  var shop=document.getElementById('e-shop').value.trim()||'Fly shop';
+  var typedE=document.getElementById('e-shop').value.trim(),shop=typedE||'Fly shop';
   var date=document.getElementById('e-date').value||o.date;
   var pr=parseFloat(document.getElementById('e-price').value);
   if(isNaN(pr)||pr<0)return;
@@ -258,7 +259,7 @@ function saveOrder(id){
     if(!(qty>0))return;
     o.qty=qty;o.fly=document.getElementById('e-fly').value;
   }
-  o.shop=shop;o.date=date;closeModal();commit('Order saved.');
+  o.shop=shop;if(typedE)ensureShop(typedE);o.date=date;closeModal();commit('Order saved.');
 }
 function deleteOrder(id){snapshotUndo('before deleting an order');S.orders=S.orders.filter(function(x){return x.id!==id});closeModal();commit('Order deleted.')}
 function undoTied(id){
@@ -268,11 +269,11 @@ function undoTied(id){
   o.status='open';closeModal();commit('Back to "To tie". Supplies put back in your tying materials.');
 }
 function addOrder(){
-  var shop=document.getElementById('o-shop').value.trim()||'Fly shop';
+  var typedN=document.getElementById('o-shop').value.trim(),shop=typedN||'Fly shop';
   var qty=parseInt(document.getElementById('o-qty').value,10);
   var price=parseFloat(document.getElementById('o-price').value);
   if(!(qty>0)||!document.getElementById('o-fly').value||isNaN(price)||price<0)return;
-  S.shopName=shop;
+  S.shopName=shop;if(typedN)ensureShop(typedN);
   S.orders.unshift({id:'O'+(S.nextId++),shop:shop,fly:document.getElementById('o-fly').value,qty:qty,price:price,status:'open',date:today(),paid:0});
   closeModal();commit('Order added.');
 }
@@ -782,7 +783,7 @@ function openModal(html){document.getElementById('modal').innerHTML='<div class=
 function closeModal(){document.getElementById('modal').innerHTML=''}
 function newOrderModal(){
   openModal('<h3>New order</h3>'+
-   '<div><label for="o-shop">Which shop?</label><input id="o-shop" value="'+esc(S.shopName)+'"></div>'+
+   '<div><label for="o-shop">Which shop?</label>'+shopChips('o-shop',S.shopName)+'<input id="o-shop" value="'+esc(S.shopName)+'" placeholder="Tap a shop, or type a new one"></div>'+
    '<div><label for="o-fly">Which fly?</label><select id="o-fly" onchange="flyChanged(\'o-fly\',\'o-price\',\'o-warn\')">'+tieable().map(function(f){return '<option value="'+f.id+'">'+esc(f.name)+'</option>'}).join('')+'</select><div class="muted">Only flies you can tie are listed. Mark a fly as tied on the Flies tab to add it here.</div></div>'+
    '<div><label for="o-qty">How many?</label><input id="o-qty" type="number" inputmode="numeric" value="12" min="1"></div>'+
    '<div><label for="o-price">Price per fly you agreed on</label><input id="o-price" type="number" inputmode="decimal" step="0.05" value="'+(tieable()[0]?tieable()[0].price.toFixed(2):'')+'" oninput="dealWarn(document.getElementById(\'o-fly\').value,\'o-price\',\'o-warn\')"><div class="muted">It starts at your usual price. Change it to whatever the shop and you agreed.</div></div>'+
@@ -793,7 +794,7 @@ function newOrderModal(){
 function orderModal(id){
   var o=S.orders.filter(function(x){return x.id===id})[0],f=fly(o.fly);
   var h='<h3>Edit order</h3>'+
-   '<div><label for="e-shop">Which shop?</label><input id="e-shop" value="'+esc(o.shop)+'"></div>';
+   '<div><label for="e-shop">Which shop?</label>'+shopChips('e-shop',o.shop)+'<input id="e-shop" value="'+esc(o.shop)+'" placeholder="Tap a shop, or type a new one"></div>';
   if(o.status==='open'){
     h+='<div><label for="e-fly">Which fly?</label><select id="e-fly" onchange="flyChanged(\'e-fly\',\'e-price\',\'e-warn\')">'+tieable(o.fly).map(function(x){return '<option value="'+x.id+'"'+(x.id===o.fly?' selected':'')+'>'+esc(x.name)+'</option>'}).join('')+'</select></div>'+
        '<div><label for="e-qty">How many?</label><input id="e-qty" type="number" inputmode="numeric" min="1" value="'+o.qty+'"></div>';
@@ -924,7 +925,7 @@ function resetModal(){
 /* ---------- screens ---------- */
 
 /* ---------- Dad's corner (PIN) ---------- */
-var APP_VERSION='2026-11-16.37';
+var APP_VERSION='2026-11-16.38';
 var officeTab='money',dadUnlocked=false,dadUntil=0, PIN_KEY='chase-fly-shop-pin-v1';
 function getPin(){try{return localStorage.getItem(PIN_KEY)}catch(e){return null}}
 function pinFields(two){
@@ -933,10 +934,98 @@ function pinFields(two){
     '<div class="alert" id="pin-err" style="display:none"></div>';
 }
 function pinErr(m){var e=document.getElementById('pin-err');if(e){e.textContent=m;e.style.display='block'}}
+
+/* ---------- shops ---------- */
+function shops(){
+  if(!S.shops){
+    var seen={},arr=[];
+    S.orders.forEach(function(o){var n=String(o.shop||'').trim(),k=n.toLowerCase();if(n&&!seen[k]){seen[k]=1;arr.push({name:n})}});
+    arr.sort(function(a,b){return a.name.toLowerCase()<b.name.toLowerCase()?-1:1});
+    arr.forEach(function(s,i){s.id='Hm'+(i+1)});
+    S.shops=arr;
+  }
+  return S.shops;
+}
+function shopsSorted(){return shops().slice().sort(function(a,b){return a.name.toLowerCase()<b.name.toLowerCase()?-1:(a.name.toLowerCase()>b.name.toLowerCase()?1:0)})}
+function shopRec(name){var k=String(name||'').trim().toLowerCase();if(!k)return null;return shops().filter(function(s){return s.name.trim().toLowerCase()===k})[0]||null}
+function shopById(id){return shops().filter(function(s){return s.id===id})[0]}
+function ensureShop(name){name=String(name||'').trim();if(!name||shopRec(name))return;shops().push({id:'H'+(S.nextId++),name:name})}
+function phoneDigits(p){return String(p||'').replace(/[^\d+]/g,'')}
+function phoneOk(p){return phoneDigits(p).replace(/\D/g,'').length>=7}
+function telHref(p){return 'tel:'+phoneDigits(p)}
+function mapHref(a){var ios=/iP(hone|ad|od)/.test((typeof navigator!=='undefined'&&navigator.userAgent)||'');return (ios?'https://maps.apple.com/?q=':'https://maps.google.com/?q=')+encodeURIComponent(a)}
+function shopChips(inputId,current){
+  var l=shopsSorted();if(!l.length)return '';
+  return '<div class="chips" role="group" aria-label="Saved shops">'+l.map(function(s,i){return '<button type="button" class="chip" data-shop="'+i+'" aria-pressed="'+(String(current||'').trim().toLowerCase()===s.name.trim().toLowerCase())+'" onclick="pickShop(\''+inputId+'\','+i+')">'+esc(s.name)+'</button>'}).join('')+'</div>';
+}
+function pickShop(inputId,i){
+  var s=shopsSorted()[i],el=document.getElementById(inputId);if(!s||!el)return;
+  el.value=s.name;
+  var chips=document.querySelectorAll?document.querySelectorAll('[data-shop]'):[];
+  for(var k=0;k<chips.length;k++){chips[k].setAttribute('aria-pressed',String(chips[k].getAttribute('data-shop')===String(i)))}
+}
+function shopActions(o){
+  if(!o||o.status==='paid')return '';
+  var s=shopRec(o.shop);if(!s)return '';
+  var b='';
+  if(phoneOk(s.phone))b+='<a class="btnlink alt small" href="'+esc(telHref(s.phone))+'">Call'+(s.contact?' '+esc(s.contact):'')+'</a>';
+  if(s.address&&String(s.address).trim())b+='<a class="btnlink alt small" href="'+esc(mapHref(s.address))+'" target="_blank" rel="noopener noreferrer">Directions</a>';
+  return b?'<div class="shoplinks">'+b+'</div>':'';
+}
+function shopOrderCount(s){var k=s.name.trim().toLowerCase();return S.orders.filter(function(o){return String(o.shop||'').trim().toLowerCase()===k}).length}
+function shopsContent(){
+  var h='<button class="wide" onclick="shopModal(null)">+ New shop</button>';
+  var l=shopsSorted();
+  if(!l.length)h+='<div class="card muted">No shops yet. Add one here, or just type a shop name on a new order and it is saved for you.</div>';
+  l.forEach(function(s){
+    var n=shopOrderCount(s);
+    h+='<div class="card stack"><div class="row"><b>'+esc(s.name)+'</b><span class="muted">'+n+' order'+(n===1?'':'s')+'</span></div>'+
+      (s.contact?'<div>Contact: '+esc(s.contact)+'</div>':'')+
+      (s.phone?'<div>'+(phoneOk(s.phone)?'<a href="'+esc(telHref(s.phone))+'">'+esc(s.phone)+'</a>':esc(s.phone))+'</div>':'')+
+      (s.address?'<div><a href="'+esc(mapHref(s.address))+'" target="_blank" rel="noopener noreferrer">'+esc(s.address)+'</a></div>':'')+
+      (s.notes?'<div class="muted">'+esc(s.notes)+'</div>':'')+
+      '<div class="row" style="justify-content:flex-start"><button class="alt small" onclick="shopModal(\''+s.id+'\')">Edit</button><button class="alt small" onclick="delShopModal(\''+s.id+'\')">Remove</button></div></div>';
+  });
+  return h;
+}
+function shopModal(id){
+  var s=id?shopById(id):null;
+  openModal('<h3>'+(s?'Edit shop':'New shop')+'</h3>'+
+   '<div><label for="sh-name">Shop name</label><input id="sh-name" value="'+esc(s?s.name:'')+'" placeholder="Example: Evergreen Fly Shop"></div>'+
+   '<div><label for="sh-contact">Who do you talk to?</label><input id="sh-contact" value="'+esc(s&&s.contact||'')+'" placeholder="Example: Mike"></div>'+
+   '<div><label for="sh-phone">Phone number</label><input id="sh-phone" type="tel" inputmode="tel" value="'+esc(s&&s.phone||'')+'" placeholder="Example: 303-555-0123"></div>'+
+   '<div><label for="sh-addr">Address</label><input id="sh-addr" value="'+esc(s&&s.address||'')+'" placeholder="Street, city"></div>'+
+   '<div><label for="sh-notes">Notes (optional)</label><textarea id="sh-notes" rows="3" style="font:inherit" placeholder="Example: Open Tue to Sat. Likes midges.">'+esc(s&&s.notes||'')+'</textarea></div>'+
+   '<div class="alert" id="sh-err" style="display:none"></div>'+
+   '<button class="wide" onclick="saveShop('+(s?'\''+s.id+'\'':'null')+')">Save shop</button><button class="alt wide" onclick="closeModal()">Cancel</button>');
+}
+function saveShop(id){
+  var g=function(x){return (document.getElementById(x).value||'').trim()};
+  var name=g('sh-name'),er=document.getElementById('sh-err');
+  var bad=function(m){er.textContent=m;er.style.display='block'};
+  if(!name){bad('Add the shop name.');return}
+  var dup=shops().filter(function(s){return s.id!==id&&s.name.trim().toLowerCase()===name.toLowerCase()})[0];
+  if(dup){bad('You already have a shop with that name.');return}
+  var rec;
+  if(id){
+    rec=shopById(id);if(!rec)return;
+    var old=rec.name.trim().toLowerCase();
+    if(old!==name.toLowerCase()||rec.name!==name){S.orders.forEach(function(o){if(String(o.shop||'').trim().toLowerCase()===old)o.shop=name});if(String(S.shopName||'').trim().toLowerCase()===old)S.shopName=name}
+    rec.name=name;
+  }else{rec={id:'H'+(S.nextId++),name:name};shops().push(rec)}
+  ['contact','phone','address','notes'].forEach(function(k){var v=g({contact:'sh-contact',phone:'sh-phone',address:'sh-addr',notes:'sh-notes'}[k]);if(v)rec[k]=v;else delete rec[k]});
+  closeModal();commit('Saved '+name+'.');
+}
+function delShopModal(id){
+  var s=shopById(id);if(!s)return;var n=shopOrderCount(s);
+  openModal('<h3>Remove '+esc(s.name)+'?</h3><div class="muted">This removes the saved phone number and address.'+(n?' Your '+n+' order'+(n===1?'':'s')+' with this shop stay and still show the shop name.':'')+'</div>'+
+   '<button class="wide" onclick="delShop(\''+s.id+'\')">Yes, remove it</button><button class="alt wide" onclick="closeModal()">Keep it</button>');
+}
+function delShop(id){S.shops=shops().filter(function(s){return s.id!==id});closeModal();commit('Shop removed.')}
 function dadView(){
   if(dadUnlocked&&Date.now()>dadUntil)dadUnlocked=false;
   if(dadUnlocked){dadUntil=Date.now()+180000;
-    return '<div class="row"><h2 style="margin:0">Office</h2><button class="alt small" onclick="lockDad()">Lock</button></div>'+'<div class="chips" role="group" aria-label="Office section">'+[['money','Money'],['flies','Flies'],['settings','Settings']].map(function(c){return '<button class="chip" aria-pressed="'+(officeTab===c[0])+'" onclick="officeTab=\''+c[0]+'\';render();window.scrollTo(0,0)">'+c[1]+'</button>'}).join('')+'</div>'+(officeTab==='money'?moneyContent():officeTab==='flies'?fliesAdminContent():undoCard()+settingsContent())+
+    return '<div class="row"><h2 style="margin:0">Office</h2><button class="alt small" onclick="lockDad()">Lock</button></div>'+'<div class="chips" role="group" aria-label="Office section">'+[['money','Money'],['flies','Flies'],['shops','Shops'],['settings','Settings']].map(function(c){return '<button class="chip" aria-pressed="'+(officeTab===c[0])+'" onclick="officeTab=\''+c[0]+'\';render();window.scrollTo(0,0)">'+c[1]+'</button>'}).join('')+'</div>'+(officeTab==='money'?moneyContent():officeTab==='flies'?fliesAdminContent():officeTab==='shops'?shopsContent():undoCard()+settingsContent())+
       '<button class="alt wide" onclick="pinModal()">Change PIN</button>';
   }
   if(!getPin()){
@@ -1141,7 +1230,7 @@ function ordersView(){
     var cost=flyCost(f)*o.qty,est=orderPrice(o)*o.qty,dw=o.status==='paid'?'':dealWarnText(f,orderPrice(o));
     var label={open:'To tie',tied:'Delivered, not paid',paid:'Paid'}[o.status];
     h+='<div class="card stack"><div class="row"><b>'+o.qty+' &times; '+esc(f.name)+'</b><span class="pill '+o.status+'">'+label+'</span></div>'+
-       '<div class="muted">'+esc(o.shop)+' &middot; '+esc(o.date)+'</div>'+ageBar(o);
+       '<div class="muted">'+esc(o.shop)+' &middot; '+esc(o.date)+'</div>'+ageBar(o)+shopActions(o);
     if(o.status==='paid'){h+='<div class="row"><span class="muted">Paid</span><b>'+$(o.paid)+'</b></div>'}
     else{h+='<div class="row"><span class="muted">Price each</span><b>'+$(orderPrice(o))+'</b></div><div class="row"><span class="muted">Should earn</span><b>'+$(est)+'</b></div>'+(dw?'<div class="alert">'+esc(dw)+'</div>':'')}
     if(o.status==='open')h+='<button onclick="tieOrder(\''+o.id+'\')">I tied them</button>'+payLinkBtn('alt small');

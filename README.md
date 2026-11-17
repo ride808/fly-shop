@@ -11,7 +11,7 @@ A phone-first shop manager for Chase's hand-tied flies. It tracks orders, tying 
 - **Tying Materials:** what is in stock, searchable, with type filters. Count it, add a new material, and "Bought a pack".
 - **Flies:** the fly menu with photos and prices, and a **Fly wishlist** of flies Chase wants to learn (with notes and a link). "Make it a recipe" turns an idea into a new fly and removes it from the wishlist when saved. "See recipe" shows the materials per fly and per dozen, numbered tying steps Chase can tap to check off, and a link to a video or page.
 
-**Office** (PIN protected. Stays open for 3 minutes after you last look at it, so you can hop between tabs. Locks right away if the app is closed or put in the background, or when you tap Lock):
+**Office** (Money, Flies, Shops and Settings. PIN protected. Stays open for 3 minutes after you last look at it, so you can hop between tabs. Locks right away if the app is closed or put in the background, or when you tap Lock):
 
 - **Money:** Shop pays you (all together), Restock (money for supplies) and Your money, plus "I paid for supplies" and a "What to buy" list for low or short materials. Each paid order shows what it kept.
 - **Flies:** the wishlist button, plus add or edit flies and their recipes (swipe a material to remove it, add more from the shelf, photo, tying steps, link), set prices, see what a price keeps in real time, and the minimum margin warning.
@@ -78,6 +78,7 @@ You never need to reconnect sync after an update. Reconnect only on a new phone 
 
 - **PIN:** Office is behind a 4-digit PIN stored on each device. If it is forgotten, clear the site's data in the browser settings. When sync is on, the shop is safe in the cloud: reconnect with the setup link.
 - **Confirmations:** destructive actions ask first. Restoring a backup and erasing everything need a typed word. Most actions can be undone once from Office > Settings.
+- **Shops:** Office > Shops keeps each shop's name, contact, phone, address and notes. On a new or edited order, tap a saved shop or type a new name (new names are saved automatically). Orders waiting to be tied or paid show a Call button (tap to phone the shop) and a Directions button. Renaming a shop updates its orders. Removing one keeps the shop name on old orders.
 - **Delivery countdown:** orders still to tie show "Due in 5 days", "Due tomorrow", "Due today" or "2 days late" with a bar. Green is plenty of time, yellow is due soon (the last 30% of the time), red is late. The promised number of days (7 to start) is set in Office > Flies > Delivery time. The order that has waited longest is listed first.
 - **Backups:** Office > Settings > Backup and restore saves a dated .json file (on iPhone, pick Save to Files in the share sheet). Restore by choosing that file. Copy and paste still works as a fallback. The backup holds the shop data only, not the PIN or the sync connection. Make one before experimenting.
 
