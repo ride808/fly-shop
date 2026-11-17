@@ -567,12 +567,19 @@ function buyModal(id){
 }
 
 /* ---------- modals ---------- */
+var CATS=['Hook','Thread','Bead','Cone','Dubbing','Wire','Flash','Hackle','Feather','Fur','Foam','Chenille','Eyes','Rubber','Lead','Glue','Tool','Other'];
+function allCats(){var c=CATS.slice();S.materials.forEach(function(m){if(m.cat&&c.indexOf(m.cat)<0)c.push(m.cat)});return c}
 function unitHint(cat){
   var c=(cat||'').toLowerCase();
   if(/hook|bead|cone|eye/.test(c))return 'Count each one. The pack size is how many are in the pack. Most flies use 1.';
   if(/thread/.test(c))return 'Count in yards. Look at the spool label for the pack size. A small fly uses about 1 yard.';
   if(/wire|tinsel|floss/.test(c))return 'Count in inches. The pack size is the yards on the spool times 36. A small fly uses about 3 to 5 inches.';
   if(/dub/.test(c))return 'Hard to measure. Guess how many flies one package makes and use that as the pack size. Then use 1 per fly. Count what is left now and then and fix the number.';
+  if(/flash|krystal|mylar/.test(c))return 'Count strands. The pack size is how many strands you can really use. A small fly uses 2 to 4.';
+  if(/foam/.test(c))return 'Count in square inches. The pack size is the size of the sheet. A small piece for one fly is about 1 square inch or less.';
+  if(/chenille|yarn|rubber|lead/.test(c))return 'Count in inches. The pack size is the length in the pack. Measure how much one fly uses.';
+  if(/glue|resin|cement|epoxy/.test(c))return 'Hard to measure. Guess how many flies one bottle does and use that as the pack size. Then use 1 per fly.';
+  if(/tool/.test(c))return 'Tools are not used up. Add one only if you want to keep track of it, and leave it out of recipes.';
   if(/feather|hackle|marabou|cdc|fur|hair|fiber/.test(c))return 'Count feathers or pieces. The pack size is how many you can really use. Use 1 per fly, or 0.5 if one feather does two flies.';
   return 'Pick one way to count it, like each, inches, or flies per pack, and always use the same one.';
 }
@@ -582,6 +589,10 @@ function unitSuggest(cat){
   if(/thread/.test(c))return 'yards';
   if(/wire|tinsel|floss/.test(c))return 'inches';
   if(/dub/.test(c))return 'flies per pack';
+  if(/flash|krystal|mylar/.test(c))return 'strands';
+  if(/foam/.test(c))return 'square inches';
+  if(/chenille|yarn|rubber|lead/.test(c))return 'inches';
+  if(/glue|resin|cement|epoxy/.test(c))return 'flies per pack';
   if(/feather|hackle|marabou|cdc|fur|hair|fiber/.test(c))return 'feathers';
   return 'each';
 }
@@ -591,8 +602,7 @@ function parseSteps(t){return String(t||'').split('\n').map(function(x){return x
 function okLink(u){return /^https:\/\/[^\s"'<>]+$/i.test(u)}
 function materialModal(id){
   var m=id?mat(id):null;
-  var cats=['Hook','Thread','Bead','Dubbing','Wire','Feather','Fur','Other'];
-  S.materials.forEach(function(x){if(cats.indexOf(x.cat)<0)cats.push(x.cat)});
+  var cats=allCats();
   openModal('<h3>'+(m?'Edit material':'New material')+'</h3>'+
    '<div><label for="m-name">Name</label><input id="m-name" value="'+esc(m?m.name:'')+'" placeholder="Example: Pheasant tail fibers"></div>'+
    '<div><label for="m-cat">Type</label><input id="m-cat" list="cats" value="'+esc(m?m.cat:'')+'" placeholder="Hook, bead, thread..." oninput="updUnitHint()"><datalist id="cats">'+cats.map(function(c){return '<option value="'+esc(c)+'">'}).join('')+'</datalist></div>'+
@@ -669,8 +679,7 @@ function flyModal(id,draft){
   var linkV=draft?draft.link:(f&&f.link?f.link:'');
   var priceV=draft?draft.price:(f?f.price.toFixed(2):'');
   var canV=draft&&draft.can?draft.can:(f?(canTie(f)?'yes':'no'):'no');
-  var cats=['Hook','Thread','Bead','Dubbing','Wire','Feather','Fur','Other'];
-  S.materials.forEach(function(x){if(cats.indexOf(x.cat)<0)cats.push(x.cat)});
+  var cats=allCats();
   var fid=id?'\''+id+'\'':'null';
   var recIds=Object.keys(qtyOf).filter(function(k){return mat(k)});
   if(!draft){flyCats=[];flyQ='';pendPhoto=null;pendWish=null}
@@ -715,7 +724,7 @@ function removeFromRecipe(mid,id){var d=readFlyDraft(),t=flyTop();delete d.qty[m
 function addToRecipe(mid,id){var d=readFlyDraft(),t=flyTop();if(d.qty[mid]===undefined)d.qty[mid]='1';flyReopen(id,d,t)}
 function toggleCat(list,c){var i=list.indexOf(c);if(i>=0)list.splice(i,1);else list.push(c)}
 function applyFlyFilter(){
-  var cats=['All'];S.materials.forEach(function(m){if(cats.indexOf(m.cat)<0)cats.push(m.cat)});
+  var cats=['All'].concat(allCats());
   flyCats=flyCats.filter(function(c){return cats.indexOf(c)>=0});
   var ch=document.getElementById('fchips');
   if(ch){
@@ -838,7 +847,7 @@ function resetModal(){
 /* ---------- screens ---------- */
 
 /* ---------- Dad's corner (PIN) ---------- */
-var APP_VERSION='2026-11-16.24';
+var APP_VERSION='2026-11-16.25';
 var officeTab='money',dadUnlocked=false, PIN_KEY='chase-fly-shop-pin-v1';
 function getPin(){try{return localStorage.getItem(PIN_KEY)}catch(e){return null}}
 function pinFields(two){
@@ -1067,7 +1076,7 @@ function ordersView(){
 }
 function shelfView(){
   var need=neededForOpen();
-  var cats=['All'];S.materials.forEach(function(m){if(cats.indexOf(m.cat)<0)cats.push(m.cat)});
+  var cats=['All'].concat(allCats());
   shelfCats=shelfCats.filter(function(c){return cats.indexOf(c)>=0});
   var h='<button class="wide" onclick="materialModal(null)">+ New material</button>'+
     '<div><label for="shelf-q">Find a material</label><input id="shelf-q" type="search" placeholder="Type a name, like #14 or tungsten" value="'+esc(shelfQ)+'" oninput="shelfQ=this.value;applyShelfFilter()"></div>'+
@@ -1127,7 +1136,7 @@ function applyShelfFilter(){
   var c=document.getElementById('shelf-count');if(c)c.textContent='Showing '+n+' of '+rows.length;
 }
 function wireShelfChips(){
-  var cats=['All'];S.materials.forEach(function(m){if(cats.indexOf(m.cat)<0)cats.push(m.cat)});
+  var cats=['All'].concat(allCats());
   var ch=document.getElementById('shelf-chips');if(!ch)return;
   ch.querySelectorAll('button').forEach(function(b){b.onclick=function(){var i=parseInt(b.getAttribute('data-i'),10);if(i===0)shelfCats=[];else toggleCat(shelfCats,cats[i]);ch.querySelectorAll('button').forEach(function(x,j){x.setAttribute('aria-pressed',j===0?shelfCats.length===0:shelfCats.indexOf(cats[j])>=0)});applyShelfFilter()}});
 }
