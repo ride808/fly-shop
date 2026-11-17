@@ -70,6 +70,7 @@ label{display:block;font-weight:800;font-size:15px;margin-bottom:4px}
 .pill.bad{background:var(--warn);color:#fff}
 .bar{height:14px;border-radius:99px;background:var(--line);overflow:hidden}
 .bar i{display:block;height:100%;background:var(--good);border-radius:99px}
+.pin{-webkit-text-security:disc;letter-spacing:.3em}
 .btnlink.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}.btnlink.small{min-height:40px;padding:8px 14px;font-size:15px}.shoplinks{display:flex;flex-wrap:wrap;gap:8px}
 .age{display:flex;flex-direction:column;gap:6px}.age .bar{height:10px}.age b{font-size:14px}.age.mid b{color:var(--amber)}.age.mid .bar i{background:var(--amber)}.age.old b{color:var(--warn)}.age.old .bar i{background:var(--warn)}
 .bar.low i{background:var(--warn)}
@@ -91,7 +92,7 @@ nav button{flex:1;background:transparent;color:var(--muted);border-radius:0;padd
 nav button svg{width:26px;height:26px}
 nav button[aria-current="page"]{color:var(--accent)}
 .sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;z-index:10}
-.sheet{background:var(--bg);width:100%;max-width:560px;border-radius:22px 22px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:90%;overflow:auto;display:flex;flex-direction:column;gap:12px}
+.sheet{overscroll-behavior:contain;background:var(--bg);width:100%;max-width:560px;border-radius:22px 22px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));max-height:90%;overflow:auto;display:flex;flex-direction:column;gap:12px}
 .sheet>*{flex-shrink:0}
 .sheet h3{font-family:var(--display);margin:0;font-size:21px}
 .recipe-line{display:flex;gap:10px;align-items:center}
@@ -779,7 +780,15 @@ function applyFlyFilter(){
   }
   var c=document.getElementById('f-count');if(c)c.textContent=rows.length?('Showing '+n+' of '+rows.length+' materials not in this fly'):'Every material on your shelf is already in this fly.';
 }
-function openModal(html){document.getElementById('modal').innerHTML='<div class="sheet-bg" onclick="if(event.target===this)closeModal()"><div class="sheet" role="dialog" aria-modal="true">'+html+'</div></div>'}
+function openModal(html){document.getElementById('modal').innerHTML='<div class="sheet-bg" onclick="if(event.target===this)closeModal()"><div class="sheet" role="dialog" aria-modal="true">'+html+'</div></div>'
+  try{
+    var bg=document.querySelector('#modal .sheet-bg'),sh=document.querySelector('#modal .sheet');
+    if(bg&&sh&&bg.addEventListener)bg.addEventListener('wheel',function(e){
+      if(sh.contains(e.target))return;
+      sh.scrollTop+=e.deltaY;e.preventDefault();
+    },{passive:false});
+  }catch(e){}
+}
 function closeModal(){document.getElementById('modal').innerHTML=''}
 function newOrderModal(){
   openModal('<h3>New order</h3>'+
@@ -925,12 +934,28 @@ function resetModal(){
 /* ---------- screens ---------- */
 
 /* ---------- Dad's corner (PIN) ---------- */
-var APP_VERSION='2026-11-16.38';
+var APP_VERSION='2026-11-16.40';
 var officeTab='money',dadUnlocked=false,dadUntil=0, PIN_KEY='chase-fly-shop-pin-v1';
+var LOCK_KEY='chase-fly-shop-lockmode-v1', OPEN_KEY='chase-fly-shop-open-v1';
+function lockMode(){try{var v=localStorage.getItem(LOCK_KEY);return (v==='30'||v==='open')?v:'3'}catch(e){return '3'}}
+function lockMs(){var m=lockMode();return m==='30'?1800000:(m==='open'?31536000000:180000)}
+function setLockMode(v){
+  if(v!=='30'&&v!=='open')v='3';
+  try{localStorage.setItem(LOCK_KEY,v);if(v==='open')localStorage.setItem(OPEN_KEY,'1');else localStorage.removeItem(OPEN_KEY)}catch(e){}
+  dadUntil=Date.now()+lockMs();render();
+}
+function lockCard(){
+  var m=lockMode();
+  return '<div class="card stack"><h2 style="margin:0">Office lock</h2><div><label for="lm">Keep the Office open</label><select id="lm" onchange="setLockMode(this.value)">'+
+   '<option value="3"'+(m==='3'?' selected':'')+'>3 minutes after I last use it</option>'+
+   '<option value="30"'+(m==='30'?' selected':'')+'>30 minutes after I last use it</option>'+
+   '<option value="open"'+(m==='open'?' selected':'')+'>Until I tap Lock</option></select></div>'+
+   '<div class="muted">This is only for this device. On a phone the Office also locks when you switch to another app. Pick &ldquo;Until I tap Lock&rdquo; on a computer only you use.</div></div>';
+}
 function getPin(){try{return localStorage.getItem(PIN_KEY)}catch(e){return null}}
 function pinFields(two){
-  return '<div><label for="pin1">'+(two?'New PIN (4 digits)':'PIN')+'</label><input id="pin1" type="password" inputmode="numeric" maxlength="4" autocomplete="off"></div>'+
-    (two?'<div><label for="pin2">Type it again</label><input id="pin2" type="password" inputmode="numeric" maxlength="4" autocomplete="off"></div>':'')+
+  return '<div><label for="pin1">'+(two?'New PIN (4 digits)':'PIN')+'</label><input id="pin1" class="pin" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true"></div>'+
+    (two?'<div><label for="pin2">Type it again</label><input id="pin2" class="pin" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true"></div>':'')+
     '<div class="alert" id="pin-err" style="display:none"></div>';
 }
 function pinErr(m){var e=document.getElementById('pin-err');if(e){e.textContent=m;e.style.display='block'}}
@@ -1023,8 +1048,9 @@ function delShopModal(id){
 }
 function delShop(id){S.shops=shops().filter(function(s){return s.id!==id});closeModal();commit('Shop removed.')}
 function dadView(){
+  if(!dadUnlocked&&lockMode()==='open'&&getPin()){try{if(localStorage.getItem(OPEN_KEY)==='1'){dadUnlocked=true;dadUntil=Date.now()+lockMs()}}catch(e){}}
   if(dadUnlocked&&Date.now()>dadUntil)dadUnlocked=false;
-  if(dadUnlocked){dadUntil=Date.now()+180000;
+  if(dadUnlocked){dadUntil=Date.now()+lockMs();if(lockMode()==='open'){try{localStorage.setItem(OPEN_KEY,'1')}catch(e){}}
     return '<div class="row"><h2 style="margin:0">Office</h2><button class="alt small" onclick="lockDad()">Lock</button></div>'+'<div class="chips" role="group" aria-label="Office section">'+[['money','Money'],['flies','Flies'],['shops','Shops'],['settings','Settings']].map(function(c){return '<button class="chip" aria-pressed="'+(officeTab===c[0])+'" onclick="officeTab=\''+c[0]+'\';render();window.scrollTo(0,0)">'+c[1]+'</button>'}).join('')+'</div>'+(officeTab==='money'?moneyContent():officeTab==='flies'?fliesAdminContent():officeTab==='shops'?shopsContent():undoCard()+settingsContent())+
       '<button class="alt wide" onclick="pinModal()">Change PIN</button>';
   }
@@ -1041,10 +1067,10 @@ function setPin(){
   if(!/^\d{4}$/.test(a)){pinErr('Use exactly 4 numbers.');return}
   if(a!==b){pinErr('The two PINs do not match.');return}
   try{localStorage.setItem(PIN_KEY,a)}catch(e){}
-  dadUnlocked=true;dadUntil=Date.now()+180000;render();
+  dadUnlocked=true;dadUntil=Date.now()+lockMs();render();
 }
 function tryPin(){
-  if(document.getElementById('pin1').value===getPin()){dadUnlocked=true;dadUntil=Date.now()+180000;render()}
+  if(document.getElementById('pin1').value===getPin()){dadUnlocked=true;dadUntil=Date.now()+lockMs();render()}
   else{pinErr('That PIN did not match.')}
 }
 function refreshApp(){
@@ -1058,8 +1084,8 @@ function appCard(){
   return '<div class="card stack"><h2 style="margin:0">App version</h2><div class="muted">Version '+APP_VERSION+'. If something looks out of date, refresh the app. Your orders, money, and settings are not touched.</div>'+
     '<button class="alt wide" onclick="refreshApp()">Refresh the app</button></div>';
 }
-function lockDad(){dadUnlocked=false;dadUntil=0;render()}
-document.addEventListener('visibilitychange',function(){if(document.hidden){dadUnlocked=false;dadUntil=0}});
+function lockDad(){dadUnlocked=false;dadUntil=0;try{localStorage.removeItem(OPEN_KEY)}catch(e){}render()}
+document.addEventListener('visibilitychange',function(){if(!document.hidden)return;var coarse=false;try{coarse=!!(window.matchMedia&&window.matchMedia('(pointer:coarse)').matches)}catch(e){}if(coarse&&lockMode()!=='open'){dadUnlocked=false;dadUntil=0}});
 function pinModal(){
   openModal('<h3>Change PIN</h3>'+pinFields(true)+'<button class="wide" onclick="saveNewPin()">Save new PIN</button><button class="alt wide" onclick="closeModal()">Cancel</button>');
 }
@@ -1284,6 +1310,7 @@ function fliesAdminContent(){
 function settingsContent(){
   var h='<button class="alt wide" onclick="helpModal()">How this app works</button>';
   h+=payLinkCard();
+  h+=lockCard();
   h+=syncCard();
   h+=appCard();
   h+='<button class="alt wide" onclick="backupModal()">Backup and restore</button><button class="alt wide" onclick="resetModal()">Start over</button>';
