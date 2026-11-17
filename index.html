@@ -601,20 +601,21 @@ function updUnitHint(){var c=document.getElementById('m-cat'),h=document.getElem
 function unitOf(m){return m&&m.unit?m.unit:''}
 function parseSteps(t){return String(t||'').split('\n').map(function(x){return x.replace(/^\s*(?:step\s*)?\d+[.):-]?\s*/i,'').trim()}).filter(function(x){return x})}
 function okLink(u){return /^https:\/\/[^\s"'<>]+$/i.test(u)}
-function materialModal(id){
-  var m=id?mat(id):null;
+function materialModal(id,copyOf){
+  var m=id?mat(id):null,src=copyOf?mat(copyOf):null,v=m||src;
   var cats=allCats();
-  openModal('<h3>'+(m?'Edit material':'New material')+'</h3>'+
-   '<div><label for="m-name">Name</label><input id="m-name" value="'+esc(m?m.name:'')+'" placeholder="Example: Pheasant tail fibers"></div>'+
-   '<div><label for="m-cat">Type</label><input id="m-cat" list="cats" value="'+esc(m?m.cat:'')+'" placeholder="Hook, bead, thread..." oninput="updUnitHint()"><datalist id="cats">'+cats.map(function(c){return '<option value="'+esc(c)+'">'}).join('')+'</datalist></div>'+
-   '<div><label for="m-cost">What did the pack cost?</label><input id="m-cost" type="number" inputmode="decimal" step="0.01" value="'+(m?m.packCost:'')+'"></div>'+
-   '<div><label for="m-qty">How many are in the pack?</label><input id="m-qty" type="number" inputmode="decimal" step="any" value="'+(m?m.packQty:'')+'"></div>'+
-   '<div><label for="m-unit">How you count it (optional)</label><input id="m-unit" list="units" value="'+esc(m?unitOf(m):'')+'" placeholder="Example: each, yards, inches"><datalist id="units"><option value="each"><option value="yards"><option value="inches"><option value="feathers"><option value="flies per pack"><option value="strands"><option value="square inches"></datalist></div>'+
-   '<div class="card muted" id="m-hint">'+esc(unitHint(m?m.cat:''))+'</div>'+
+  openModal('<h3>'+(m?'Edit material':(src?'Copy of a material':'New material'))+'</h3>'+
+   '<div><label for="m-name">Name</label><input id="m-name" value="'+esc(v?v.name:'')+'" placeholder="Example: Pheasant tail fibers"></div>'+
+   '<div><label for="m-cat">Type</label><input id="m-cat" list="cats" value="'+esc(v?v.cat:'')+'" placeholder="Hook, bead, thread..." oninput="updUnitHint()"><datalist id="cats">'+cats.map(function(c){return '<option value="'+esc(c)+'">'}).join('')+'</datalist></div>'+
+   '<div><label for="m-cost">What did the pack cost?</label><input id="m-cost" type="number" inputmode="decimal" step="0.01" value="'+(v?v.packCost:'')+'"></div>'+
+   '<div><label for="m-qty">How many are in the pack?</label><input id="m-qty" type="number" inputmode="decimal" step="any" value="'+(v?v.packQty:'')+'"></div>'+
+   '<div><label for="m-unit">How you count it (optional)</label><input id="m-unit" list="units" value="'+esc(v?unitOf(v):'')+'" placeholder="Example: each, yards, inches"><datalist id="units"><option value="each"><option value="yards"><option value="inches"><option value="feathers"><option value="flies per pack"><option value="strands"><option value="square inches"></datalist></div>'+
+   '<div class="card muted" id="m-hint">'+esc(unitHint(v?v.cat:''))+'</div>'+
    (m?'':'<div><label for="m-have">How many do you have right now?</label><input id="m-have" type="number" inputmode="decimal" step="any" placeholder="Leave blank for a full pack"></div>')+
    '<div class="alert" id="m-err" style="display:none"></div>'+
    '<button class="wide" onclick="saveMaterial('+(m?'\''+m.id+'\'':'null')+')">Save material</button><button class="alt wide" onclick="closeModal()">Cancel</button>');
   var er=document.getElementById('m-err');updUnitHint();
+  if(src){var nn=document.getElementById('m-name');if(nn){try{nn.focus();nn.select()}catch(e){}}}
   new MutationObserver(function(){er.style.display=er.textContent?'block':'none'}).observe(er,{childList:true});
 }
 function readFlyDraft(){
@@ -869,7 +870,7 @@ function resetModal(){
 /* ---------- screens ---------- */
 
 /* ---------- Dad's corner (PIN) ---------- */
-var APP_VERSION='2026-11-16.30';
+var APP_VERSION='2026-11-16.32';
 var officeTab='money',dadUnlocked=false,dadUntil=0, PIN_KEY='chase-fly-shop-pin-v1';
 function getPin(){try{return localStorage.getItem(PIN_KEY)}catch(e){return null}}
 function pinFields(two){
@@ -1076,7 +1077,6 @@ function moneyContent(){
 }
 function ordersView(){
   var h='<button class="wide" onclick="newOrderModal()">+ New order</button>';
-  h+=payLink()?payLinkBtn('wide'):'<div class="card muted">To let a shop pay you, add your Greenlight link in Office &rarr; Settings.</div>';
   var order={open:0,tied:1,paid:2};
   var list=S.orders.slice().sort(function(a,b){return order[a.status]-order[b.status]});
   if(!list.length)h+='<div class="card muted">No orders yet.</div>';
@@ -1113,7 +1113,7 @@ function shelfView(){
     h+='<div class="card stack mrow" data-cat="'+esc(m.cat)+'" data-name="'+esc((m.name+' '+m.cat).toLowerCase())+'"><div class="row"><div><b>'+esc(m.name)+'</b><div class="muted">'+esc(m.cat)+'</div></div><b>'+(Math.round(m.stock*10)/10)+(m.unit?' <span class="muted" style="font-weight:600;font-size:13px">'+esc(m.unit)+'</span>':'')+'</b></div>'+
       '<div class="bar'+((short||low)?' low':'')+'"><i style="width:'+pct+'%"></i></div>'+
       (n?'<div class="muted">Open orders need '+n+'.'+(short?' <b style="color:var(--warn)">Short by '+(Math.round((n-m.stock)*10)/10)+'.</b>':'')+'</div>':'')+
-      '<div class="row"><button class="alt small" onclick="countModal(\''+m.id+'\')">Count it</button><button class="alt small" onclick="materialModal(\''+m.id+'\')">Edit</button>'+
+      '<div class="row"><button class="alt small" onclick="countModal(\''+m.id+'\')">Count it</button><button class="alt small" onclick="materialModal(\''+m.id+'\')">Edit</button><button class="alt small" onclick="materialModal(null,\''+m.id+'\')">Copy</button>'+
       '<button class="small" onclick="buyModal(\''+m.id+'\')">Bought a pack</button></div></div>';
   });
   return h;
