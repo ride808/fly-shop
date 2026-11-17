@@ -69,6 +69,9 @@ label{display:block;font-weight:800;font-size:15px;margin-bottom:4px}
 .bar i{display:block;height:100%;background:var(--good);border-radius:99px}
 .bar.low i{background:var(--warn)}
 .btnlink{display:flex;align-items:center;justify-content:center;min-height:48px;border-radius:14px;background:var(--accent);color:var(--accent-ink);font-weight:800;text-decoration:none;padding:10px 16px}
+.steps{margin:0;padding-left:26px;display:flex;flex-direction:column;gap:8px}
+.steps li{padding:10px 12px;background:var(--card);border-radius:12px;cursor:pointer;list-style-position:outside}
+.steps li.done{text-decoration:line-through;opacity:.55}
 .swipe{background:var(--warn);border-radius:12px;overflow:hidden}
 .swipe .recipe-line{background:var(--card);padding:6px 8px;border-radius:12px;touch-action:pan-y}
 .arow{padding:4px 2px}
@@ -292,9 +295,11 @@ function copyMenu(){var t=document.getElementById('menu-text');t.select();try{na
 function recipeModal(id){
   var f=fly(id);if(!f)return;
   var rows=f.recipe.map(function(r){var m=mat(r[0]);if(!m)return '';
-    return '<tr><td>'+esc(m.name)+'<div class="muted">'+esc(m.cat)+'</div></td><td><b>'+(Math.round(r[1]*100)/100)+'</b></td><td class="muted">'+(Math.round(r[1]*12*100)/100)+'</td></tr>'}).join('');
+    return '<tr><td>'+esc(m.name)+'<div class="muted">'+esc(m.cat)+'</div></td><td><b>'+(Math.round(r[1]*100)/100)+'</b>'+(m.unit?' <span class="muted">'+esc(m.unit)+'</span>':'')+'</td><td class="muted">'+(Math.round(r[1]*12*100)/100)+'</td></tr>'}).join('');
   openModal('<h3>'+esc(f.name)+'</h3>'+photoImg(f)+
    '<div class="card"><table><tr><td class="muted">Material</td><td class="muted">One fly</td><td class="muted">A dozen</td></tr>'+rows+'</table></div>'+
+   ((f.steps&&f.steps.length)?'<div><b>How to tie it</b><div class="muted">Tap a step when you finish it.</div></div><ol class="steps">'+f.steps.map(function(t){return '<li onclick="this.classList.toggle(\'done\')">'+esc(t)+'</li>'}).join('')+'</ol>':'<div class="muted">No tying steps yet. Add them in the Office, under Flies.</div>')+
+   ((f.link&&okLink(f.link))?'<a class="btnlink" href="'+esc(f.link)+'" target="_blank" rel="noopener noreferrer">Open the video or page</a>':'')+
    '<button class="alt wide" onclick="closeModal()">Close</button>');
 }
 function menuModal(){
@@ -335,11 +340,12 @@ function saveMaterial(id){
   var cat=document.getElementById('m-cat').value.trim()||'Other';
   var cost=parseFloat(document.getElementById('m-cost').value);
   var qty=parseFloat(document.getElementById('m-qty').value);
+  var unit=(document.getElementById('m-unit').value||'').trim();
   if(!name||isNaN(cost)||cost<0||!(qty>0)){document.getElementById('m-err').textContent='Add a name, what the pack cost, and how many are in a pack.';return}
-  if(id){var m=mat(id);m.name=name;m.cat=cat;m.packCost=cost;m.packQty=qty;closeModal();commit('Saved '+name+'.')}
+  if(id){var m=mat(id);m.name=name;m.cat=cat;m.packCost=cost;m.packQty=qty;if(unit)m.unit=unit;else delete m.unit;closeModal();commit('Saved '+name+'.')}
   else{
     var have=parseFloat(document.getElementById('m-have').value);
-    S.materials.push({id:'X'+(S.nextId++),cat:cat,name:name,packCost:cost,packQty:qty,stock:isNaN(have)?qty:have});
+    var nm={id:'X'+(S.nextId++),cat:cat,name:name,packCost:cost,packQty:qty,stock:isNaN(have)?qty:have};if(unit)nm.unit=unit;S.materials.push(nm);
     closeModal();commit('Added '+name+' to your tying materials.');
   }
 }
@@ -351,8 +357,10 @@ function saveFly(id){
   S.materials.forEach(function(m){var el=document.getElementById('rq-'+m.id);if(!el)return;var q=parseFloat(el.value);if(q>0)rec.push([m.id,q]);else bad=true});
   if(!name||isNaN(price)||price<0||!rec.length){document.getElementById('f-err').textContent='Add a name, a price, and at least one material.';return}
   if(bad){document.getElementById('f-err').textContent='Type an amount for each material, or remove it.';return}
-  if(id){var f=fly(id);f.name=name;f.price=price;f.recipe=rec;f.canTie=can;if(pendPhoto!==null){if(pendPhoto)f.photo=pendPhoto;else delete f.photo}closeModal();commit('Saved '+name+'.')}
-  else{var nf={id:'F'+(S.nextId++),name:name,price:price,recipe:rec,canTie:can};if(pendPhoto)nf.photo=pendPhoto;S.flies.push(nf);closeModal();commit(can?'Added '+name+'. You can take orders for it.':'Added '+name+' as a fly you are still learning.')}
+  var steps=parseSteps(document.getElementById('f-steps').value),link=(document.getElementById('f-link').value||'').trim();
+  if(link&&!okLink(link)){document.getElementById('f-err').textContent='The link needs to start with https://';return}
+  if(id){var f=fly(id);f.name=name;f.price=price;f.recipe=rec;f.canTie=can;if(steps.length)f.steps=steps;else delete f.steps;if(link)f.link=link;else delete f.link;if(pendPhoto!==null){if(pendPhoto)f.photo=pendPhoto;else delete f.photo}closeModal();commit('Saved '+name+'.')}
+  else{var nf={id:'F'+(S.nextId++),name:name,price:price,recipe:rec,canTie:can};if(steps.length)nf.steps=steps;if(link)nf.link=link;if(pendPhoto)nf.photo=pendPhoto;S.flies.push(nf);closeModal();commit(can?'Added '+name+'. You can take orders for it.':'Added '+name+' as a fly you are still learning.')}
 }
 
 
@@ -395,20 +403,43 @@ function buyModal(id){
 }
 
 /* ---------- modals ---------- */
+function unitHint(cat){
+  var c=(cat||'').toLowerCase();
+  if(/hook|bead|cone|eye/.test(c))return 'Count each one. The pack size is how many are in the pack. Most flies use 1.';
+  if(/thread/.test(c))return 'Count in yards. Look at the spool label for the pack size. A small fly uses about 1 yard.';
+  if(/wire|tinsel|floss/.test(c))return 'Count in inches. The pack size is the yards on the spool times 36. A small fly uses about 3 to 5 inches.';
+  if(/dub/.test(c))return 'Hard to measure. Guess how many flies one package makes and use that as the pack size. Then use 1 per fly. Count what is left now and then and fix the number.';
+  if(/feather|hackle|marabou|cdc|fur|hair|fiber/.test(c))return 'Count feathers or pieces. The pack size is how many you can really use. Use 1 per fly, or 0.5 if one feather does two flies.';
+  return 'Pick one way to count it, like each, inches, or flies per pack, and always use the same one.';
+}
+function unitSuggest(cat){
+  var c=(cat||'').toLowerCase();
+  if(/hook|bead|cone|eye/.test(c))return 'each';
+  if(/thread/.test(c))return 'yards';
+  if(/wire|tinsel|floss/.test(c))return 'inches';
+  if(/dub/.test(c))return 'flies per pack';
+  if(/feather|hackle|marabou|cdc|fur|hair|fiber/.test(c))return 'feathers';
+  return 'each';
+}
+function updUnitHint(){var c=document.getElementById('m-cat'),h=document.getElementById('m-hint'),u=document.getElementById('m-unit');if(h&&c)h.textContent=unitHint(c.value);if(u&&c&&!u.value)u.placeholder='Example: '+unitSuggest(c.value)}
+function unitOf(m){return m&&m.unit?m.unit:''}
+function parseSteps(t){return String(t||'').split('\n').map(function(x){return x.replace(/^\s*(?:step\s*)?\d+[.):-]?\s*/i,'').trim()}).filter(function(x){return x})}
+function okLink(u){return /^https:\/\/[^\s"'<>]+$/i.test(u)}
 function materialModal(id){
   var m=id?mat(id):null;
   var cats=['Hook','Thread','Bead','Dubbing','Wire','Feather','Fur','Other'];
   S.materials.forEach(function(x){if(cats.indexOf(x.cat)<0)cats.push(x.cat)});
   openModal('<h3>'+(m?'Edit material':'New material')+'</h3>'+
    '<div><label for="m-name">Name</label><input id="m-name" value="'+esc(m?m.name:'')+'" placeholder="Example: Pheasant tail fibers"></div>'+
-   '<div><label for="m-cat">Type</label><input id="m-cat" list="cats" value="'+esc(m?m.cat:'')+'" placeholder="Hook, bead, thread..."><datalist id="cats">'+cats.map(function(c){return '<option value="'+esc(c)+'">'}).join('')+'</datalist></div>'+
+   '<div><label for="m-cat">Type</label><input id="m-cat" list="cats" value="'+esc(m?m.cat:'')+'" placeholder="Hook, bead, thread..." oninput="updUnitHint()"><datalist id="cats">'+cats.map(function(c){return '<option value="'+esc(c)+'">'}).join('')+'</datalist></div>'+
    '<div><label for="m-cost">What did the pack cost?</label><input id="m-cost" type="number" inputmode="decimal" step="0.01" value="'+(m?m.packCost:'')+'"></div>'+
    '<div><label for="m-qty">How many are in the pack?</label><input id="m-qty" type="number" inputmode="decimal" step="any" value="'+(m?m.packQty:'')+'"></div>'+
-   '<div class="muted">Hooks and beads: count each one. Thread and wire: pick yards or inches and always use the same one.</div>'+
+   '<div><label for="m-unit">How you count it (optional)</label><input id="m-unit" list="units" value="'+esc(m?unitOf(m):'')+'" placeholder="Example: each, yards, inches"><datalist id="units"><option value="each"><option value="yards"><option value="inches"><option value="feathers"><option value="flies per pack"><option value="strands"><option value="square inches"></datalist></div>'+
+   '<div class="card muted" id="m-hint">'+esc(unitHint(m?m.cat:''))+'</div>'+
    (m?'':'<div><label for="m-have">How many do you have right now?</label><input id="m-have" type="number" inputmode="decimal" step="any" placeholder="Leave blank for a full pack"></div>')+
    '<div class="alert" id="m-err" style="display:none"></div>'+
    '<button class="wide" onclick="saveMaterial('+(m?'\''+m.id+'\'':'null')+')">Save material</button><button class="alt wide" onclick="closeModal()">Cancel</button>');
-  var er=document.getElementById('m-err');
+  var er=document.getElementById('m-err');updUnitHint();
   new MutationObserver(function(){er.style.display=er.textContent?'block':'none'}).observe(er,{childList:true});
 }
 function readFlyDraft(){
@@ -416,7 +447,8 @@ function readFlyDraft(){
   S.materials.forEach(function(m){var el=document.getElementById('rq-'+m.id);if(el)q[m.id]=el.value});
   var n=document.getElementById('f-name'),p=document.getElementById('f-price');
   var c=document.getElementById('f-can');
-  return {name:n?n.value:'',price:p?p.value:'',can:c?c.value:'',qty:q};
+  var st=document.getElementById('f-steps'),lk=document.getElementById('f-link');
+  return {name:n?n.value:'',price:p?p.value:'',can:c?c.value:'',qty:q,steps:st?st.value:'',link:lk?lk.value:''};
 }
 function addMaterialInline(fid){
   var name=document.getElementById('nm-name').value.trim();
@@ -467,6 +499,8 @@ function flyModal(id,draft){
   var qtyOf={};
   if(draft){qtyOf=draft.qty}else if(f){f.recipe.forEach(function(r){qtyOf[r[0]]=r[1]})}
   var nameV=draft?draft.name:(f?f.name:'');
+  var stepsV=draft?draft.steps:(f&&f.steps?f.steps.join('\n'):'');
+  var linkV=draft?draft.link:(f&&f.link?f.link:'');
   var priceV=draft?draft.price:(f?f.price.toFixed(2):'');
   var canV=draft&&draft.can?draft.can:(f?(canTie(f)?'yes':'no'):'no');
   var cats=['Hook','Thread','Bead','Dubbing','Wire','Feather','Fur','Other'];
@@ -479,9 +513,11 @@ function flyModal(id,draft){
    '<div><label for="f-price">What the shop pays per fly</label><input id="f-price" type="number" inputmode="decimal" step="0.05" value="'+esc(priceV)+'"></div>'+
    '<div><label for="f-can">Can you tie this fly yet?</label><select id="f-can"><option value="yes"'+(canV==='yes'?' selected':'')+'>Yes, I can tie it</option><option value="no"'+(canV==='no'?' selected':'')+'>Not yet, still learning</option></select></div>'+
    '<div><label for="f-photo">Photo of the fly</label><input id="f-photo" type="file" accept="image/*" onchange="photoPick(this,'+fid+')"><div id="f-photo-prev" class="stack" style="margin-top:8px">'+photoPrev(f)+'</div></div>'+
+   '<div><label for="f-steps">How to tie it (one step on each line)</label><textarea id="f-steps" rows="7" style="font:inherit;min-height:150px" placeholder="Example:&#10;Put the hook in the vise.&#10;Start the thread behind the bead.">'+esc(stepsV)+'</textarea></div>'+
+   '<div><label for="f-link">Link to a video or page (optional)</label><input id="f-link" type="url" inputmode="url" placeholder="https://" value="'+esc(linkV)+'"></div>'+
    (f?'<div class="muted">If you change this recipe, orders that are already tied or paid keep the recipe and cost they were tied with. Orders still waiting to be tied will use the new recipe.</div>':'')+
    '<div><b>Materials in this fly ('+recIds.length+')</b><div class="muted">This is what goes into ONE fly. Type how many of each. Swipe a material left to remove it, or tap the x.</div></div>'+
-   (recIds.length?recIds.map(function(mid){var m=mat(mid);return '<div class="swipe" data-id="'+m.id+'"><div class="recipe-line frow"><label class="nm" for="rq-'+m.id+'" style="margin:0;font-weight:700">'+esc(m.name)+'<br><span class="muted">'+esc(m.cat)+'</span></label><input id="rq-'+m.id+'" type="number" inputmode="decimal" step="any" placeholder="0" value="'+esc(qtyOf[m.id])+'"><button class="alt small" aria-label="Remove '+esc(m.name)+'" onclick="removeFromRecipe(\''+m.id+'\','+fid+')">&times;</button></div></div>'}).join(''):'<div class="card muted">No materials yet. Add some from your shelf below.</div>')+
+   (recIds.length?recIds.map(function(mid){var m=mat(mid);return '<div class="swipe" data-id="'+m.id+'"><div class="recipe-line frow"><label class="nm" for="rq-'+m.id+'" style="margin:0;font-weight:700">'+esc(m.name)+'<br><span class="muted">'+esc(m.cat)+(m.unit?' &middot; '+esc(m.unit):'')+'</span></label><input id="rq-'+m.id+'" type="number" inputmode="decimal" step="any" placeholder="0" value="'+esc(qtyOf[m.id])+'"><button class="alt small" aria-label="Remove '+esc(m.name)+'" onclick="removeFromRecipe(\''+m.id+'\','+fid+')">&times;</button></div></div>'}).join(''):'<div class="card muted">No materials yet. Add some from your shelf below.</div>')+
    '<div><b>Add materials from your shelf</b><div class="muted" id="f-count"></div></div>'+
    '<input id="fq" type="search" aria-label="Find a material" placeholder="Find a material" value="'+esc(flyQ)+'" oninput="flyQ=this.value;applyFlyFilter()">'+
    '<div class="chips" id="fchips" role="group" aria-label="Filter by type"></div>'+
@@ -636,7 +672,7 @@ function resetModal(){
 /* ---------- screens ---------- */
 
 /* ---------- Dad's corner (PIN) ---------- */
-var APP_VERSION='2026-11-16.16';
+var APP_VERSION='2026-11-16.17';
 var officeTab='money',dadUnlocked=false, PIN_KEY='chase-fly-shop-pin-v1';
 function getPin(){try{return localStorage.getItem(PIN_KEY)}catch(e){return null}}
 function pinFields(two){
@@ -842,7 +878,7 @@ function shelfView(){
   S.materials.forEach(function(m){
     var n=need[m.id]||0,short=n>m.stock,low=m.stock<=m.packQty*0.2;
     var pct=Math.max(0,Math.min(100,m.stock/m.packQty*100));
-    h+='<div class="card stack mrow" data-cat="'+esc(m.cat)+'" data-name="'+esc((m.name+' '+m.cat).toLowerCase())+'"><div class="row"><div><b>'+esc(m.name)+'</b><div class="muted">'+esc(m.cat)+'</div></div><b>'+(Math.round(m.stock*10)/10)+'</b></div>'+
+    h+='<div class="card stack mrow" data-cat="'+esc(m.cat)+'" data-name="'+esc((m.name+' '+m.cat).toLowerCase())+'"><div class="row"><div><b>'+esc(m.name)+'</b><div class="muted">'+esc(m.cat)+'</div></div><b>'+(Math.round(m.stock*10)/10)+(m.unit?' <span class="muted" style="font-weight:600;font-size:13px">'+esc(m.unit)+'</span>':'')+'</b></div>'+
       '<div class="bar'+((short||low)?' low':'')+'"><i style="width:'+pct+'%"></i></div>'+
       (n?'<div class="muted">Open orders need '+n+'.'+(short?' <b style="color:var(--warn)">Short by '+(Math.round((n-m.stock)*10)/10)+'.</b>':'')+'</div>':'')+
       '<div class="row"><button class="alt small" onclick="countModal(\''+m.id+'\')">Count it</button><button class="alt small" onclick="materialModal(\''+m.id+'\')">Edit</button>'+
