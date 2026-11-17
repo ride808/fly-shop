@@ -69,6 +69,9 @@ label{display:block;font-weight:800;font-size:15px;margin-bottom:4px}
 .bar i{display:block;height:100%;background:var(--good);border-radius:99px}
 .bar.low i{background:var(--warn)}
 .btnlink{display:flex;align-items:center;justify-content:center;min-height:48px;border-radius:14px;background:var(--accent);color:var(--accent-ink);font-weight:800;text-decoration:none;padding:10px 16px}
+.swipe{background:var(--warn);border-radius:12px;overflow:hidden}
+.swipe .recipe-line{background:var(--card);padding:6px 8px;border-radius:12px;touch-action:pan-y}
+.arow{padding:4px 2px}
 .fphoto{width:100%;max-height:200px;object-fit:cover;border-radius:12px;display:block}
 .alert{background:var(--warn-bg);color:var(--warn);border-radius:12px;padding:10px 12px;font-weight:700;font-size:15px}
 .okmsg{background:var(--good-bg);color:var(--good);border-radius:12px;padding:10px 12px;font-weight:700;font-size:15px}
@@ -187,8 +190,7 @@ function buyPack(id){
   closeModal();
   var m=mat(id);
   m.stock+=m.packQty;
-  addLedger('restock',-m.packCost,'Bought '+m.name);
-  commit('Restocked '+m.name+'. Paid '+$(m.packCost)+' from the Restock jar.');
+  commit('Added a pack of '+m.name+' to your count.');
 }
 function orderPrice(o){if(o.price!=null)return o.price;var f=fly(o.fly);return f?f.price:0}
 function floorPrice(f){return Math.ceil(minPrice(f)*20-0.0001)/20}
@@ -237,12 +239,6 @@ function addOrder(){
   S.shopName=shop;
   S.orders.unshift({id:'O'+(S.nextId++),shop:shop,fly:document.getElementById('o-fly').value,qty:qty,price:price,status:'open',date:today(),paid:0});
   closeModal();commit('Order added.');
-}
-function spendMoney(){
-  var amt=parseFloat(document.getElementById('sp-amt').value);
-  var note=document.getElementById('sp-note').value.trim()||'Spent';
-  if(!(amt>0))return;
-  addLedger('spend',-amt,note);closeModal();commit('Recorded.');
 }
 function setCount(id){
   var v=parseFloat(document.getElementById('cnt').value);
@@ -321,7 +317,7 @@ function playHTML(f,price){
    (ok?'':'<div class="alert">'+(keep<0?'That is less than your supplies cost. You lose money on every fly. ':'Below your minimum. ')+'Charge at least '+$(minPrice(f))+' to keep '+mm+'%.</div>')+
    '<div class="muted"><b>If you sell a dozen at this price</b></div>'+
    '<div class="row"><span class="muted">Shop pays you</span><b>'+$(earn)+'</b></div>'+
-   '<div class="row"><span class="muted">Back to Restock (supplies)</span><b>'+$(sup)+'</b></div>'+
+   '<div class="row"><span class="muted">To Restock (owed to Dad)</span><b>'+$(sup)+'</b></div>'+
    '<div class="row"><span class="muted">Your money</span><b>'+$(spend)+'</b></div>';
 }
 function playPrice(id,v){var f=fly(id),el=document.getElementById('pl-'+id);v=parseFloat(v);if(!f||!el)return;el.innerHTML=isNaN(v)||v<0?'<div class="muted">Type a price to see what it does.</div>':playHTML(f,v)}
@@ -351,8 +347,10 @@ function saveFly(id){
   var name=document.getElementById('f-name').value.trim();
   var price=parseFloat(document.getElementById('f-price').value);
   var rec=[];var can=document.getElementById('f-can').value==='yes';
-  S.materials.forEach(function(m){var q=parseFloat(document.getElementById('rq-'+m.id).value);if(q>0)rec.push([m.id,q])});
+  var bad=false;
+  S.materials.forEach(function(m){var el=document.getElementById('rq-'+m.id);if(!el)return;var q=parseFloat(el.value);if(q>0)rec.push([m.id,q]);else bad=true});
   if(!name||isNaN(price)||price<0||!rec.length){document.getElementById('f-err').textContent='Add a name, a price, and at least one material.';return}
+  if(bad){document.getElementById('f-err').textContent='Type an amount for each material, or remove it.';return}
   if(id){var f=fly(id);f.name=name;f.price=price;f.recipe=rec;f.canTie=can;if(pendPhoto!==null){if(pendPhoto)f.photo=pendPhoto;else delete f.photo}closeModal();commit('Saved '+name+'.')}
   else{var nf={id:'F'+(S.nextId++),name:name,price:price,recipe:rec,canTie:can};if(pendPhoto)nf.photo=pendPhoto;S.flies.push(nf);closeModal();commit(can?'Added '+name+'. You can take orders for it.':'Added '+name+' as a fly you are still learning.')}
 }
@@ -393,7 +391,7 @@ function typedConfirmModal(title,body,word,yes,action){
 }
 function buyModal(id){
   var m=mat(id);
-  confirmModal('Bought a pack?','This adds '+m.packQty+' to your count of '+esc(m.name)+' and takes '+$(m.packCost)+' out of the Restock jar.','Yes, I bought it',"buyPack('"+id+"')");
+  confirmModal('Bought a pack?','This adds '+m.packQty+' to your count of '+esc(m.name)+'.','Yes, I bought it',"buyPack('"+id+"')");
 }
 
 /* ---------- modals ---------- */
@@ -415,7 +413,7 @@ function materialModal(id){
 }
 function readFlyDraft(){
   var q={};
-  S.materials.forEach(function(m){var el=document.getElementById('rq-'+m.id);if(el&&el.value!=='')q[m.id]=el.value});
+  S.materials.forEach(function(m){var el=document.getElementById('rq-'+m.id);if(el)q[m.id]=el.value});
   var n=document.getElementById('f-name'),p=document.getElementById('f-price');
   var c=document.getElementById('f-can');
   return {name:n?n.value:'',price:p?p.value:'',can:c?c.value:'',qty:q};
@@ -474,6 +472,7 @@ function flyModal(id,draft){
   var cats=['Hook','Thread','Bead','Dubbing','Wire','Feather','Fur','Other'];
   S.materials.forEach(function(x){if(cats.indexOf(x.cat)<0)cats.push(x.cat)});
   var fid=id?'\''+id+'\'':'null';
+  var recIds=Object.keys(qtyOf).filter(function(k){return mat(k)});
   if(!draft){flyCats=[];flyQ='';pendPhoto=null}
   openModal('<h3>'+(f?'Edit fly':'New fly')+'</h3>'+
    '<div><label for="f-name">Fly name</label><input id="f-name" value="'+esc(nameV)+'" placeholder="Example: Zebra Midge #18"></div>'+
@@ -481,10 +480,12 @@ function flyModal(id,draft){
    '<div><label for="f-can">Can you tie this fly yet?</label><select id="f-can"><option value="yes"'+(canV==='yes'?' selected':'')+'>Yes, I can tie it</option><option value="no"'+(canV==='no'?' selected':'')+'>Not yet, still learning</option></select></div>'+
    '<div><label for="f-photo">Photo of the fly</label><input id="f-photo" type="file" accept="image/*" onchange="photoPick(this,'+fid+')"><div id="f-photo-prev" class="stack" style="margin-top:8px">'+photoPrev(f)+'</div></div>'+
    (f?'<div class="muted">If you change this recipe, orders that are already tied or paid keep the recipe and cost they were tied with. Orders still waiting to be tied will use the new recipe.</div>':'')+
-   '<div><b>What goes into ONE fly?</b><div class="muted">Type how many of each. Leave it blank if the fly does not use it. Materials you fill in always stay on screen.</div></div>'+
+   '<div><b>Materials in this fly ('+recIds.length+')</b><div class="muted">This is what goes into ONE fly. Type how many of each. Swipe a material left to remove it, or tap the x.</div></div>'+
+   (recIds.length?recIds.map(function(mid){var m=mat(mid);return '<div class="swipe" data-id="'+m.id+'"><div class="recipe-line frow"><label class="nm" for="rq-'+m.id+'" style="margin:0;font-weight:700">'+esc(m.name)+'<br><span class="muted">'+esc(m.cat)+'</span></label><input id="rq-'+m.id+'" type="number" inputmode="decimal" step="any" placeholder="0" value="'+esc(qtyOf[m.id])+'"><button class="alt small" aria-label="Remove '+esc(m.name)+'" onclick="removeFromRecipe(\''+m.id+'\','+fid+')">&times;</button></div></div>'}).join(''):'<div class="card muted">No materials yet. Add some from your shelf below.</div>')+
+   '<div><b>Add materials from your shelf</b><div class="muted" id="f-count"></div></div>'+
    '<input id="fq" type="search" aria-label="Find a material" placeholder="Find a material" value="'+esc(flyQ)+'" oninput="flyQ=this.value;applyFlyFilter()">'+
    '<div class="chips" id="fchips" role="group" aria-label="Filter by type"></div>'+
-   S.materials.map(function(m){return '<div class="recipe-line frow" data-cat="'+esc(m.cat)+'" data-name="'+esc((m.name+' '+m.cat).toLowerCase())+'" data-id="'+m.id+'"><label class="nm" for="rq-'+m.id+'" style="margin:0;font-weight:700">'+esc(m.name)+'<br><span class="muted">'+esc(m.cat)+'</span></label><input id="rq-'+m.id+'" type="number" inputmode="decimal" step="any" placeholder="0" value="'+(qtyOf[m.id]!==undefined?esc(qtyOf[m.id]):'')+'"></div>'}).join('')+
+   S.materials.filter(function(m){return recIds.indexOf(m.id)<0}).map(function(m){return '<div class="recipe-line arow" data-cat="'+esc(m.cat)+'" data-name="'+esc((m.name+' '+m.cat).toLowerCase())+'" data-id="'+m.id+'"><div class="nm"><b>'+esc(m.name)+'</b><br><span class="muted">'+esc(m.cat)+'</span></div><button class="small" onclick="addToRecipe(\''+m.id+'\','+fid+')">Add</button></div>'}).join('')+
    '<button class="alt wide" id="nm-open" onclick="document.getElementById(\'nm-box\').style.display=\'flex\';this.style.display=\'none\'">+ New material</button>'+
    '<div class="card stack" id="nm-box" style="display:none"><b>Add a new material</b>'+
     '<div><label for="nm-name">Name</label><input id="nm-name" placeholder="Example: Pheasant tail fibers"></div>'+
@@ -499,7 +500,17 @@ function flyModal(id,draft){
   var er=document.getElementById('f-err');
   new MutationObserver(function(){er.style.display=er.textContent?'block':'none'}).observe(er,{childList:true});
   applyFlyFilter();
+  document.querySelectorAll('.swipe').forEach(function(w){
+    var row=w.firstChild,mid=w.getAttribute('data-id'),x0=null,y0=0,dx=0;
+    w.addEventListener('touchstart',function(e){var t=e.touches[0];x0=t.clientX;y0=t.clientY;dx=0;row.style.transition='none'},{passive:true});
+    w.addEventListener('touchmove',function(e){if(x0===null)return;var t=e.touches[0],mx=t.clientX-x0,my=t.clientY-y0;if(dx===0&&Math.abs(mx)<Math.abs(my)+6)return;dx=Math.min(0,mx);row.style.transform='translateX('+dx+'px)'},{passive:true});
+    w.addEventListener('touchend',function(){if(x0===null)return;x0=null;row.style.transition='transform .15s';if(dx<-90){row.style.transform='translateX(-110%)';removeFromRecipe(mid,id)}else{row.style.transform=''}},{passive:true});
+  });
 }
+function flyTop(){var el=document.querySelector?document.querySelector('.sheet'):null;return el?el.scrollTop:0}
+function flyReopen(id,draft,top){flyModal(id,draft);var el=document.querySelector?document.querySelector('.sheet'):null;if(el&&top)el.scrollTop=top}
+function removeFromRecipe(mid,id){var d=readFlyDraft(),t=flyTop();delete d.qty[mid];flyReopen(id,d,t)}
+function addToRecipe(mid,id){var d=readFlyDraft(),t=flyTop();if(d.qty[mid]===undefined)d.qty[mid]='1';flyReopen(id,d,t)}
 function toggleCat(list,c){var i=list.indexOf(c);if(i>=0)list.splice(i,1);else list.push(c)}
 function applyFlyFilter(){
   var cats=['All'];S.materials.forEach(function(m){if(cats.indexOf(m.cat)<0)cats.push(m.cat)});
@@ -509,13 +520,12 @@ function applyFlyFilter(){
     ch.innerHTML=cats.map(function(c,i){return '<button class="chip" data-i="'+i+'" aria-pressed="'+(i===0?flyCats.length===0:flyCats.indexOf(c)>=0)+'">'+esc(c)+'</button>'}).join('');
     ch.querySelectorAll('button').forEach(function(b){b.onclick=function(){var i=parseInt(b.getAttribute('data-i'),10);if(i===0)flyCats=[];else toggleCat(flyCats,cats[i]);applyFlyFilter()}});
   }
-  var q=flyQ.trim().toLowerCase();
-  document.querySelectorAll('.frow').forEach(function(r){
-    var inp=document.getElementById('rq-'+r.getAttribute('data-id'));
-    var filled=inp&&inp.value!=='';
+  var q=flyQ.trim().toLowerCase(),n=0,rows=document.querySelectorAll('.arow');
+  rows.forEach(function(r){
     var ok=(!flyCats.length||flyCats.indexOf(r.getAttribute('data-cat'))>=0)&&(!q||r.getAttribute('data-name').indexOf(q)>=0);
-    r.style.display=(filled||ok)?'':'none';
+    r.style.display=ok?'':'none';if(ok)n++;
   });
+  var c=document.getElementById('f-count');if(c)c.textContent=rows.length?('Showing '+n+' of '+rows.length+' materials not in this fly'):'Every material on your shelf is already in this fly.';
 }
 function openModal(html){document.getElementById('modal').innerHTML='<div class="sheet-bg" onclick="if(event.target===this)closeModal()"><div class="sheet" role="dialog" aria-modal="true">'+html+'</div></div>'}
 function closeModal(){document.getElementById('modal').innerHTML=''}
@@ -574,11 +584,17 @@ function payWarn(id){
     w.style.display='block';
   }else{w.textContent='';w.style.display='none'}
 }
-function spendModal(){
-  openModal('<h3>I spent money</h3><div class="muted">This comes out of Your money.</div>'+
-   '<div><label for="sp-amt">How much?</label><input id="sp-amt" type="number" inputmode="decimal" step="0.01"></div>'+
-   '<div><label for="sp-note">What for?</label><input id="sp-note"></div>'+
-   '<button class="wide" onclick="spendMoney()">Save</button><button class="alt wide" onclick="closeModal()">Cancel</button>');
+function payDadModal(){
+  var owe=Math.max(0,jar('restock'));
+  openModal('<h3>I paid for supplies</h3><div class="muted">Pay Dad in Greenlight, or buy the materials yourself. Then record it here. This lowers your Restock money.</div>'+
+   '<div><label for="pd-amt">How much did you spend on supplies?</label><input id="pd-amt" type="number" inputmode="decimal" step="0.01" value="'+(owe>0?owe.toFixed(2):'')+'"></div>'+
+   '<div class="alert" id="pd-err" style="display:none"></div>'+
+   '<button class="wide" onclick="payDad()">Record it</button><button class="alt wide" onclick="closeModal()">Cancel</button>');
+}
+function payDad(){
+  var amt=parseFloat(document.getElementById('pd-amt').value),er=document.getElementById('pd-err');
+  if(!(amt>0)){if(er){er.textContent='Type how much you spent.';er.style.display='block'}return}
+  addLedger('restock',-amt,'Paid for supplies');closeModal();commit('Recorded. Your Restock money is updated.');
 }
 function countModal(id){
   var m=mat(id);
@@ -620,7 +636,7 @@ function resetModal(){
 /* ---------- screens ---------- */
 
 /* ---------- Dad's corner (PIN) ---------- */
-var APP_VERSION='2026-11-16.14';
+var APP_VERSION='2026-11-16.16';
 var officeTab='money',dadUnlocked=false, PIN_KEY='chase-fly-shop-pin-v1';
 function getPin(){try{return localStorage.getItem(PIN_KEY)}catch(e){return null}}
 function pinFields(two){
@@ -631,7 +647,7 @@ function pinFields(two){
 function pinErr(m){var e=document.getElementById('pin-err');if(e){e.textContent=m;e.style.display='block'}}
 function dadView(){
   if(dadUnlocked){
-    return '<div class="row"><h2 style="margin:0">Office</h2><button class="alt small" onclick="lockDad()">Lock</button></div>'+'<div class="chips" role="group" aria-label="Office section">'+[['money','Money'],['settings','Settings']].map(function(c){return '<button class="chip" aria-pressed="'+(officeTab===c[0])+'" onclick="officeTab=\''+c[0]+'\';render();window.scrollTo(0,0)">'+c[1]+'</button>'}).join('')+'</div>'+(officeTab==='money'?moneyContent():undoCard()+dadContent())+
+    return '<div class="row"><h2 style="margin:0">Office</h2><button class="alt small" onclick="lockDad()">Lock</button></div>'+'<div class="chips" role="group" aria-label="Office section">'+[['money','Money'],['flies','Flies'],['settings','Settings']].map(function(c){return '<button class="chip" aria-pressed="'+(officeTab===c[0])+'" onclick="officeTab=\''+c[0]+'\';render();window.scrollTo(0,0)">'+c[1]+'</button>'}).join('')+'</div>'+(officeTab==='money'?moneyContent():officeTab==='flies'?fliesAdminContent():undoCard()+settingsContent())+
       '<button class="alt wide" onclick="pinModal()">Change PIN</button>';
   }
   if(!getPin()){
@@ -739,6 +755,7 @@ function nextStep(){
     var short=f2.recipe.filter(function(r){var m=mat(r[0]);return m&&m.stock<r[1]*o2.qty}).map(function(r){return mat(r[0]).name});
     return {t:'Restock first',b:'You are short on '+short.join(', ')+' for '+o2.qty+' '+f2.name+'.',btn:'Go to Tying Materials',act:"go('shelf')"};
   }
+  if(jar('restock')>0.005)return {t:'Check the Office',b:'You may have Restock money for supplies. Open the Office to see.',btn:'Open the Office',act:"go('dad')"};
   var low=S.materials.filter(function(m){return m.stock<=m.packQty*0.2});
   if(low.length)return {t:'Running low',b:low.map(function(m){return m.name}).join(', ')+'.',btn:'Go to Tying Materials',act:"go('shelf')"};
   return {t:'All caught up',b:'No orders waiting. Show a shop your menu and ask if they want more flies.',btn:'Show my menu',act:'menuModal()'};
@@ -750,7 +767,7 @@ function fliesView(){
   var h='<button class="wide" onclick="menuModal()">Show a shop my menu</button>'+
     '<div class="chips" role="group" aria-label="Show flies">'+[['all','All flies'],['can','I can tie'],['learning','Still learning']].map(function(c){return '<button class="chip" aria-pressed="'+(flyShow===c[0])+'" onclick="flyShow=\''+c[0]+'\';render()">'+c[1]+'</button>'}).join('')+'</div>';
   var list=liveFlies().filter(function(f){return flyShow==='all'||(flyShow==='can'?canTie(f):!canTie(f))});
-  if(!list.length)h+='<div class="card muted">'+(S.flies.length?'Nothing here.':'No flies yet. Add one in the Office (Settings).')+'</div>';
+  if(!list.length)h+='<div class="card muted">'+(S.flies.length?'Nothing here.':'No flies yet. Add one in the Office (Flies).')+'</div>';
   list.forEach(function(f){
     h+='<div class="card stack">'+photoImg(f)+'<div class="row"><b style="font-size:19px">'+esc(f.name)+'</b><span class="pill '+(canTie(f)?'paid':'')+'">'+(canTie(f)?'I can tie this':'Still learning')+'</span></div>'+
       '<div class="row"><span class="muted">Shop pays</span><b>'+$(f.price)+' each</b></div><div class="muted">'+$(f.price*12)+' per dozen</div>'+
@@ -783,7 +800,7 @@ function moneyContent(){
    '<div class="jar"><small>Shop pays you</small><span class="big">'+$(made)+'</span><span class="muted" style="font-size:13px">all together</span></div>'+
    '<div class="jar restock"><small>Restock</small><span class="big">'+$(r)+'</span><span class="muted" style="font-size:13px">for supplies</span></div>'+
    '<div class="jar spend"><small>Your money</small><span class="big">'+$(y)+'</span><span class="muted" style="font-size:13px">yours</span></div></div>';
-  h+='<button class="alt wide" onclick="spendModal()">I spent money</button>';
+  h+='<div class="card stack"><b>Restock money</b><div class="muted">Restock is money for supplies. Spend it to buy materials, or send it to Dad in Greenlight so he can buy them. Then tap the button so Restock goes down.</div><button class="wide" onclick="payDadModal()">I paid for supplies</button></div>';
   var paid=S.orders.filter(function(o){return o.status==='paid'&&fly(o.fly)}).slice(-6).reverse();
   h+='<h2>What each order kept</h2>';
   if(!paid.length)h+='<div class="card muted">Nothing yet. Paid orders show up here.</div>';
@@ -833,7 +850,7 @@ function shelfView(){
   });
   return h;
 }
-function dadContent(){
+function fliesAdminContent(){
   var h='<button class="wide" onclick="flyModal(null)">+ New fly</button><button class="alt wide" onclick="menuModal()">Show a shop my menu</button>'+
     '<div class="chips" role="group" aria-label="Show flies">'+[['all','All flies'],['can','I can tie'],['learning','Still learning']].map(function(c){return '<button class="chip" aria-pressed="'+(flyShow===c[0])+'" onclick="flyShow=\''+c[0]+'\';render()">'+c[1]+'</button>'}).join('')+'</div>';
   liveFlies().filter(function(f){return flyShow==='all'||(flyShow==='can'?canTie(f):!canTie(f))}).forEach(function(f){
@@ -849,6 +866,10 @@ function dadContent(){
   });
   h+='<div class="card stack"><h2 style="margin:0">Minimum margin</h2><div><label for="mm">Smallest share of each sale you want to keep (%)</label><input id="mm" type="number" inputmode="numeric" min="0" max="90" value="'+minMargin()+'" oninput="liveMargin(this.value)" onchange="setMinMargin(this.value)"></div>'+
      '<div class="muted">Margin is what is left of the price after supplies. At 50%, you charge at least double the supply cost. This only warns you. It never stops you from entering a price.</div></div>';
+  return h;
+}
+function settingsContent(){
+  var h='';
   h+=payLinkCard();
   h+=syncCard();
   h+=appCard();
