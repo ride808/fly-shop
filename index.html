@@ -43,6 +43,7 @@ main{flex:1;padding:16px 16px 110px;display:flex;flex-direction:column;gap:14px}
 h2{font-family:var(--display);font-size:20px;margin:6px 0 0}
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px 16px}
 .row{display:flex;gap:10px;align-items:center;justify-content:space-between}
+.mact{display:grid;grid-template-columns:1fr 1fr;gap:8px}.mact button{width:100%;padding-left:8px;padding-right:8px}
 .stack{display:flex;flex-direction:column;gap:10px}
 .muted{color:var(--muted);font-size:15px}
 .big{font-family:var(--display);font-weight:800;font-size:30px;font-variant-numeric:tabular-nums}
@@ -870,7 +871,7 @@ function resetModal(){
 /* ---------- screens ---------- */
 
 /* ---------- Dad's corner (PIN) ---------- */
-var APP_VERSION='2026-11-16.32';
+var APP_VERSION='2026-11-16.33';
 var officeTab='money',dadUnlocked=false,dadUntil=0, PIN_KEY='chase-fly-shop-pin-v1';
 function getPin(){try{return localStorage.getItem(PIN_KEY)}catch(e){return null}}
 function pinFields(two){
@@ -1113,8 +1114,8 @@ function shelfView(){
     h+='<div class="card stack mrow" data-cat="'+esc(m.cat)+'" data-name="'+esc((m.name+' '+m.cat).toLowerCase())+'"><div class="row"><div><b>'+esc(m.name)+'</b><div class="muted">'+esc(m.cat)+'</div></div><b>'+(Math.round(m.stock*10)/10)+(m.unit?' <span class="muted" style="font-weight:600;font-size:13px">'+esc(m.unit)+'</span>':'')+'</b></div>'+
       '<div class="bar'+((short||low)?' low':'')+'"><i style="width:'+pct+'%"></i></div>'+
       (n?'<div class="muted">Open orders need '+n+'.'+(short?' <b style="color:var(--warn)">Short by '+(Math.round((n-m.stock)*10)/10)+'.</b>':'')+'</div>':'')+
-      '<div class="row"><button class="alt small" onclick="countModal(\''+m.id+'\')">Count it</button><button class="alt small" onclick="materialModal(\''+m.id+'\')">Edit</button><button class="alt small" onclick="materialModal(null,\''+m.id+'\')">Copy</button>'+
-      '<button class="small" onclick="buyModal(\''+m.id+'\')">Bought a pack</button></div></div>';
+      '<div class="mact"><button class="small" onclick="buyModal(\''+m.id+'\')">Bought a pack</button><button class="alt small" onclick="countModal(\''+m.id+'\')">Count it</button>'+
+      '<button class="alt small" onclick="materialModal(\''+m.id+'\')">Edit</button><button class="alt small" onclick="materialModal(null,\''+m.id+'\')">Copy</button></div></div>';
   });
   return h;
 }
