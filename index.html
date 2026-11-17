@@ -598,15 +598,6 @@ function migrateOnce(){
   try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
   return true;
 }
-function supplyChecks(f,mode){
-  var sel=(f&&f.supplies)||[];
-  var list=S.materials.filter(function(m){return m.flat});
-  if(!list.length)return '<div class="card muted">No supplies yet. Add thread, dubbing or hackle on the Tying Materials tab and choose Small supply.</div>';
-  return list.map(function(m){
-    var on=sel.indexOf(m.id)>=0;
-    return '<label class="recipe-line" style="margin:0;font-weight:600"><input type="checkbox" id="sp-'+m.id+'"'+(on?' checked':'')+' style="width:26px;min-height:26px;flex:none"'+(mode==='live'?' onchange="toggleSupply(\''+f.id+'\',\''+m.id+'\',this.checked)"':'')+'><span class="nm">'+esc(m.name)+'<br><span class="muted">'+esc(m.cat)+(mode==='live'?' &middot; '+(supplyUnit(m)?$(supplyUnit(m))+' a fly':'set flies per pack'):'')+'</span></span></label>';
-  }).join('');
-}
 function toggleSupply(fid,mid,on){
   var f=fly(fid);if(!f)return;var a=f.supplies||[],i=a.indexOf(mid);
   if(on&&i<0)a.push(mid);if(!on&&i>=0)a.splice(i,1);
@@ -661,7 +652,7 @@ function saveMaterial(id){
 }
 function setParts(f,t,m,z){if(t)f.type=t;else delete f.type;if(m)f.model=m;else delete f.model;if(z)f.size=z;else delete f.size}
 function saveFly(id){
-  var supSel=S.materials.filter(function(m){var e=document.getElementById('sp-'+m.id);return m.flat&&e&&e.checked}).map(function(m){return m.id});
+  var supSel=flyDraftSup.filter(function(id){return mat(id)&&mat(id).flat});
   var tyEl=document.getElementById('f-type'),moEl=document.getElementById('f-model'),szEl=document.getElementById('f-size');
   var fType=(tyEl&&tyEl.value)||'',fModel=((moEl&&moEl.value)||'').trim(),fSize=(szEl&&szEl.value)||'';
   var name=(fType||fModel||fSize)?buildFlyName(fType,fModel,fSize):document.getElementById('f-name').value.trim();
@@ -796,6 +787,7 @@ function updFlyName(){
   var t=document.getElementById('f-type'),m=document.getElementById('f-model'),z=document.getElementById('f-size'),n=document.getElementById('f-name');
   if(n)n.value=buildFlyName(t?t.value:'',m?m.value:'',z?z.value:'');
 }
+var flyDraftSup=[];
 function readFlyDraft(){
   var q={};
   S.materials.forEach(function(m){var el=document.getElementById('rq-'+m.id);if(el)q[m.id]=el.value});
@@ -804,24 +796,28 @@ function readFlyDraft(){
   var c=document.getElementById('f-can');
   var st=document.getElementById('f-steps'),lk=document.getElementById('f-link');
   var sm=document.getElementById('f-small');
-  var sup=S.materials.filter(function(m){var e=document.getElementById('sp-'+m.id);return m.flat&&e&&e.checked}).map(function(m){return m.id});
-  return {supplies:sup,name:n?n.value:'',price:p?p.value:'',can:c?c.value:'',qty:q,steps:st?st.value:'',link:lk?lk.value:'',small:sm?sm.value:'',type:ty?ty.value:'',model:mo?mo.value:'',size:sz?sz.value:''};
+  return {supplies:flyDraftSup.filter(function(id){return mat(id)&&mat(id).flat}),name:n?n.value:'',price:p?p.value:'',can:c?c.value:'',qty:q,steps:st?st.value:'',link:lk?lk.value:'',small:sm?sm.value:'',type:ty?ty.value:'',model:mo?mo.value:'',size:sz?sz.value:''};
 }
+function nmIsSupply(){var c=document.getElementById('nm-cat'),v=((c&&c.value)||'').trim();return !!v&&!isCountedCat(v)}
+function updNmUse(){var sm=nmIsSupply(),sb=document.getElementById('nm-supplybox'),cb=document.getElementById('nm-countbox');if(sb)sb.style.display=sm?'block':'none';if(cb)cb.style.display=sm?'none':'flex'}
 function addMaterialInline(fid){
   var name=document.getElementById('nm-name').value.trim();
   var cat=document.getElementById('nm-cat').value.trim()||'Other';
   var cost=parseFloat(document.getElementById('nm-cost').value);
-  var qty=parseFloat(document.getElementById('nm-qty').value);
-  var have=parseFloat(document.getElementById('nm-have').value);
+  var sup=nmIsSupply(),flEl=document.getElementById('nm-flies'),flies=sup&&flEl?parseFloat(flEl.value):0;
+  var qty=sup?1:parseFloat(document.getElementById('nm-qty').value);
+  var have=sup?NaN:parseFloat(document.getElementById('nm-have').value);
   var er=document.getElementById('nm-err');
   var hk=isHookCat(cat)?readHook('nm'):null;
   if(hk&&hookAny(hk)){if(!hk.model){er.textContent='Type the hook model number, like 2487.';er.style.display='block';return}name=buildHookName(hk)}else hk=null;
+  if(sup&&!(flies>0)){er.textContent='Type about how many flies one pack ties.';er.style.display='block';return}
   if(!name||isNaN(cost)||cost<0||!(qty>0)){er.textContent='Add a name, what the pack cost, and how many are in a pack.';er.style.display='block';return}
-  var draft=pickDraft||readFlyDraft();pickDraft=null;pickOrig={};
+  var draft=pickDraft||readFlyDraft(),direct=pickDirect;pickDraft=null;pickOrig={};pickDirect=false;
   var id='X'+(S.nextId++);
-  var nmat={id:id,cat:cat,name:name,packCost:cost,packQty:qty,stock:isNaN(have)?qty:have};setHook(nmat,hk);S.materials.push(nmat);
-  draft.qty[id]='1';
+  var nmat={id:id,cat:cat,name:name,packCost:cost,packQty:qty,stock:isNaN(have)?qty:have};if(sup){nmat.flat=true;nmat.fliesPer=flies}setHook(nmat,hk);S.materials.push(nmat);
+  if(sup)draft.supplies=(draft.supplies||[]).concat([id]);else draft.qty[id]='1';
   save();
+  if(direct){applyPickDirect(fid,draft);return}
   flyModal(fid,draft);
 }
 var pendPhoto=null;
@@ -868,7 +864,9 @@ function flyModal(id,draft){
   var canV=draft&&draft.can?draft.can:(f?(canTie(f)?'yes':'no'):'no');
   var cats=allCats();
   var fid=id?'\''+id+'\'':'null';
-  var recIds=Object.keys(qtyOf).filter(function(k){return mat(k)});
+  var recIds=Object.keys(qtyOf).filter(function(k){return mat(k)&&!mat(k).flat});
+  flyDraftSup=(draft?(draft.supplies||[]):(f&&f.supplies||[])).filter(function(id){return mat(id)&&mat(id).flat});
+  var nMats=recIds.length+flyDraftSup.length;
   if(!draft){flyCats=[];flyQ='';pendPhoto=null;pendWish=null}
   openModal('<h3>'+(f?'Edit fly':'New fly')+'</h3>'+
    '<div><label for="f-type">Type of fly</label><select id="f-type" onchange="updFlyName()"><option value="">Choose a type</option>'+FLY_TYPES.map(function(t){return '<option'+(parts.type===t?' selected':'')+'>'+t+'</option>'}).join('')+'</select></div>'+
@@ -881,10 +879,11 @@ function flyModal(id,draft){
    '<div><label for="f-steps">How to tie it (one step on each line)</label><textarea id="f-steps" rows="7" style="font:inherit;min-height:150px" placeholder="Example:&#10;Put the hook in the vise.&#10;Start the thread behind the bead.">'+esc(stepsV)+'</textarea></div>'+
    '<div><label for="f-link">Link to a video or page (optional)</label><input id="f-link" type="url" inputmode="url" placeholder="https://" value="'+esc(linkV)+'"></div>'+
    (f?'<div class="muted">If you change this recipe, orders that are already tied or paid keep the recipe and cost they were tied with. Orders still waiting to be tied will use the new recipe.</div>':'')+
-   '<div id="f-mats"><b>Materials in this fly ('+recIds.length+')</b><div class="muted">This is what goes into ONE fly. Type how many of each. Swipe a material left to remove it, or tap the x.</div></div>'+
-   '<button class="wide" onclick="openPicker('+fid+')">+ Add materials</button>'+
-   (recIds.length?recIds.map(function(mid){var m=mat(mid);return '<div class="swipe" data-id="'+m.id+'"><div class="recipe-line frow"><label class="nm" for="rq-'+m.id+'" style="margin:0;font-weight:700">'+esc(m.name)+'<br><span class="muted">'+esc(m.cat)+(m.unit?' &middot; '+esc(m.unit):'')+'</span></label><input id="rq-'+m.id+'" type="number" inputmode="decimal" step="any" placeholder="0" value="'+esc(qtyOf[m.id])+'"><button class="alt small" aria-label="Remove '+esc(m.name)+'" onclick="removeFromRecipe(\''+m.id+'\','+fid+')">&times;</button></div></div>'}).join(''):'<div class="card muted">No materials yet. Tap Add materials above.</div>')+
-   '<div id="f-sups"><b>Supplies this fly uses</b><div class="muted">Thread, dubbing, hackle and other things you do not count. Tick each one.</div></div>'+supplyChecks({supplies:draft?(draft.supplies||[]):(f&&f.supplies||[])},'form')+
+   '<div id="f-mats"><b>Materials in this fly ('+nMats+')</b><div class="muted">This is what goes into ONE fly. Type how many of each hook or bead. Thread, dubbing and hackle are just listed. Swipe a material left to remove it, or tap the x.</div></div>'+
+   '<button class="wide" onclick="openPicker('+fid+')">+ Add material</button>'+
+   (recIds.length?recIds.map(function(mid){var m=mat(mid);return '<div class="swipe" data-id="'+m.id+'"><div class="recipe-line frow"><label class="nm" for="rq-'+m.id+'" style="margin:0;font-weight:700">'+esc(m.name)+'<br><span class="muted">'+esc(m.cat)+(m.unit?' &middot; '+esc(m.unit):'')+'</span></label><input id="rq-'+m.id+'" type="number" inputmode="decimal" step="any" placeholder="0" value="'+esc(qtyOf[m.id])+'"><button class="alt small" aria-label="Remove '+esc(m.name)+'" onclick="removeFromRecipe(\''+m.id+'\','+fid+')">&times;</button></div></div>'}).join(''):'')+
+   flyDraftSup.map(function(mid){var m=mat(mid);return '<div class="swipe" data-id="'+m.id+'"><div class="recipe-line frow"><span class="nm" style="font-weight:700">'+esc(m.name)+'<br><span class="muted">'+esc(m.cat)+'</span></span><button class="alt small" aria-label="Remove '+esc(m.name)+'" onclick="removeFromRecipe(\''+m.id+'\','+fid+')">&times;</button></div></div>'}).join('')+
+   (nMats?'':'<div class="card muted">No materials yet. Tap Add material above.</div>')+
    '<div><label for="f-small">Anything else per fly, in dollars (optional)</label><input id="f-small" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.05" value="'+esc(smallV)+'"><div class="muted">For a cost that is not in your lists. Most flies can leave this blank.</div></div>'+
    '<div class="alert" id="f-err" style="display:none"></div>'+
    '<button class="wide" onclick="saveFly('+fid+')">Save fly</button>'+(f?'<button class="alt wide" onclick="dupFly(\''+f.id+'\')">Duplicate as another size</button><button class="alt wide" onclick="delFlyModal(\''+f.id+'\')">Delete this fly</button>':'')+'<button class="alt wide" onclick="closeModal()">Cancel</button>');
@@ -897,13 +896,22 @@ function flyModal(id,draft){
     w.addEventListener('touchend',function(){if(x0===null)return;x0=null;row.style.transition='transform .15s';if(dx<-90){row.style.transform='translateX(-110%)';removeFromRecipe(mid,id)}else{row.style.transform=''}},{passive:true});
   });
 }
-var pickFid=null,pickDraft=null,pickOrig={};
+var pickFid=null,pickDraft=null,pickOrig={},pickDirect=false;
 function openPicker(id){
-  pickFid=id||null;pickDraft=readFlyDraft();pickOrig={};
+  pickFid=id||null;pickDirect=false;pickDraft=readFlyDraft();pickOrig={};
   Object.keys(pickDraft.qty).forEach(function(k){pickOrig[k]=1});
+  (pickDraft.supplies||[]).forEach(function(k){pickOrig[k]=1});
   flyCats=[];flyQ='';pickerModal();
 }
-function pickCount(){var n=0;Object.keys(pickDraft.qty).forEach(function(k){if(!pickOrig[k]&&mat(k))n++});return n}
+function openPickerDirect(fid){
+  var f=fly(fid);if(!f)return;
+  pickFid=fid;pickDirect=true;pickOrig={};pickDraft={qty:{},supplies:(f.supplies||[]).slice()};
+  f.recipe.forEach(function(r){pickDraft.qty[r[0]]=String(r[1]);pickOrig[r[0]]=1});
+  pickDraft.supplies.forEach(function(k){pickOrig[k]=1});
+  flyCats=[];flyQ='';pickerModal();
+}
+function pickOn(mid){var m=mat(mid);return m&&m.flat?(pickDraft.supplies||[]).indexOf(mid)>=0:pickDraft.qty[mid]!==undefined}
+function pickCount(){var n=0;Object.keys(pickDraft.qty).forEach(function(k){if(!pickOrig[k]&&mat(k))n++});(pickDraft.supplies||[]).forEach(function(k){if(!pickOrig[k]&&mat(k))n++});return n}
 function pickerModal(){
   var fid=pickFid?'\''+pickFid+'\'':'null',cats=allCats();
   openModal('<div class="row"><h3 style="margin:0">Add materials</h3><button class="small" id="pk-done-top" onclick="pickDone()">Done</button></div>'+
@@ -913,17 +921,19 @@ function pickerModal(){
    '<div class="muted" id="f-count"></div>'+
    '<button class="alt wide" id="nm-open" onclick="openNewMat()">+ New material</button>'+
    '<div class="card stack" id="nm-box" style="display:none"><b>Add a new material</b>'+
-    '<div><label for="nm-cat">What kind of material is it?</label><input id="nm-cat" list="nm-cats" placeholder="Hook, bead, thread..." oninput="updHook(\'nm\')" onchange="updHook(\'nm\')"><datalist id="nm-cats">'+cats.map(function(c){return '<option value="'+esc(c)+'">'}).join('')+'</datalist></div>'+
+    '<div><label for="nm-cat">What kind of material is it?</label><input id="nm-cat" list="nm-cats" placeholder="Hook, bead, thread..." oninput="updHook(\'nm\');updNmUse()" onchange="updHook(\'nm\');updNmUse()"><datalist id="nm-cats">'+cats.map(function(c){return '<option value="'+esc(c)+'">'}).join('')+'</datalist></div>'+
     hookBlock('nm',{style:'',brand:'',model:'',size:''},false)+
     '<div><label for="nm-name">Name</label><input id="nm-name" placeholder="Example: Pheasant tail fibers"></div>'+
     '<div><label for="nm-cost">What did the pack cost?</label><input id="nm-cost" type="number" inputmode="decimal" step="0.01"></div>'+
+    '<div id="nm-supplybox" style="display:none"><label for="nm-flies">About how many flies does one pack tie?</label><input id="nm-flies" type="number" inputmode="numeric" step="any" min="1" placeholder="Example: 100"><div class="muted">Thread, dubbing and hackle are not counted. Rough is fine. A $3 dubbing packet might tie about 100 flies.</div></div>'+
+    '<div id="nm-countbox" class="stack">'+
     '<div><label for="nm-qty">How many are in the pack?</label><input id="nm-qty" type="number" inputmode="decimal" step="any"></div>'+
-    '<div><label for="nm-have">How many do you have now?</label><input id="nm-have" type="number" inputmode="decimal" step="any" placeholder="Leave blank for a full pack"></div>'+
+    '<div><label for="nm-have">How many do you have now?</label><input id="nm-have" type="number" inputmode="decimal" step="any" placeholder="Leave blank for a full pack"></div></div>'+
     '<div class="alert" id="nm-err" style="display:none"></div>'+
     '<button onclick="addMaterialInline('+fid+')">Add it to this fly</button></div>'+
    '<div id="f-nomatch" style="display:none"></div>'+
-   S.materials.filter(matCounted).sort(function(x,y){return (pickOrig[x.id]?1:0)-(pickOrig[y.id]?1:0)}).map(function(m){
-     var inOrig=!!pickOrig[m.id],on=pickDraft.qty[m.id]!==undefined;
+   S.materials.slice().sort(function(x,y){return (pickOrig[x.id]?1:0)-(pickOrig[y.id]?1:0)}).map(function(m){
+     var inOrig=!!pickOrig[m.id],on=pickOn(m.id);
      return '<div class="recipe-line arow" data-cat="'+esc(m.cat)+'" data-name="'+esc((m.name+' '+m.cat).toLowerCase())+'" data-id="'+m.id+'"><div class="nm"><b>'+esc(m.name)+'</b><br><span class="muted">'+esc(m.cat)+'</span></div>'+
        (inOrig?'<span class="pill paid">In this fly</span>':'<button class="'+(on?'':'alt ')+'small" id="pk-'+m.id+'" aria-pressed="'+on+'" onclick="pickToggle(\''+m.id+'\')">'+(on?'Added &#10003;':'Add')+'</button>')+'</div>';
    }).join('')+
@@ -933,13 +943,22 @@ function pickerModal(){
 function pickNote(){var n=pickCount(),el=document.getElementById('pk-count');if(el)el.textContent=n?(n+' added. Tap Done when you have them all.'):'Tap Add on each material this fly needs, then tap Done.'}
 function pickToggle(mid){
   if(!pickDraft)return;
-  if(pickDraft.qty[mid]===undefined)pickDraft.qty[mid]='1';else delete pickDraft.qty[mid];
-  var on=pickDraft.qty[mid]!==undefined,b=document.getElementById('pk-'+mid);
+  var mm=mat(mid);
+  if(mm&&mm.flat){var sa=pickDraft.supplies||(pickDraft.supplies=[]),si=sa.indexOf(mid);if(si>=0)sa.splice(si,1);else sa.push(mid)}
+  else if(pickDraft.qty[mid]===undefined)pickDraft.qty[mid]='1';else delete pickDraft.qty[mid];
+  var on=pickOn(mid),b=document.getElementById('pk-'+mid);
   if(b){b.className=(on?'':'alt ')+'small';b.setAttribute('aria-pressed',String(on));b.innerHTML=on?'Added &#10003;':'Add'}
   pickNote();
 }
+function applyPickDirect(fid,d){
+  var f=fly(fid);closeModal();if(!f||!d)return;
+  Object.keys(d.qty).forEach(function(k){if(mat(k)&&!mat(k).flat&&!f.recipe.some(function(r){return r[0]===k}))f.recipe.push([k,parseFloat(d.qty[k])||1])});
+  (d.supplies||[]).forEach(function(k){if(mat(k)&&mat(k).flat){f.supplies=f.supplies||[];if(f.supplies.indexOf(k)<0)f.supplies.push(k)}});
+  save();render();
+}
 function pickDone(){
   var d=pickDraft,fid=pickFid;pickDraft=null;pickOrig={};
+  if(pickDirect){pickDirect=false;applyPickDirect(fid,d);return}
   if(!d){closeModal();return}
   flyModal(fid,d);
   try{var m=document.getElementById('f-mats');if(m&&m.scrollIntoView)m.scrollIntoView({block:'start'})}catch(e){}
@@ -961,8 +980,9 @@ function dupFly(id){
   flyCats=[];flyQ='';pendWish=null;pendPhoto=f.photo||null;
   flyModal(null,{name:f.name+' (copy)',type:fp.type,model:fp.model+' (copy)',size:fp.size,price:f.price.toFixed(2),can:canTie(f)?'yes':'no',qty:q,steps:(f.steps||[]).join('\n'),link:f.link||'',small:smallOf(f)?smallOf(f).toFixed(2):'',supplies:(f.supplies||[]).slice()});
 }
-function removeFromRecipe(mid,id){var d=readFlyDraft(),t=flyTop();delete d.qty[mid];flyReopen(id,d,t)}
-function addToRecipe(mid,id){var d=readFlyDraft(),t=flyTop();if(d.qty[mid]===undefined)d.qty[mid]='1';flyReopen(id,d,t)}
+function removeFromRecipe(mid,id){var d=readFlyDraft(),t=flyTop();delete d.qty[mid];d.supplies=(d.supplies||[]).filter(function(x){return x!==mid});flyReopen(id,d,t)}
+function removeFromFly(fid,mid){var f=fly(fid);if(!f)return;f.recipe=f.recipe.filter(function(r){return r[0]!==mid});if(f.supplies){f.supplies=f.supplies.filter(function(x){return x!==mid});if(!f.supplies.length)delete f.supplies}save();render()}
+function addToRecipe(mid,id){var d=readFlyDraft(),t=flyTop(),m=mat(mid);if(m&&m.flat){if((d.supplies||[]).indexOf(mid)<0){d.supplies=(d.supplies||[]).concat([mid])}}else if(d.qty[mid]===undefined)d.qty[mid]='1';flyReopen(id,d,t)}
 function toggleCat(list,c){var i=list.indexOf(c);if(i>=0)list.splice(i,1);else list.push(c)}
 function applyFlyFilter(){
   var cats=['All'].concat(allCats());
@@ -1138,7 +1158,7 @@ function resetModal(){
 /* ---------- screens ---------- */
 
 /* ---------- Dad's corner (PIN) ---------- */
-var APP_VERSION='2026-11-16.52';
+var APP_VERSION='2026-11-16.53';
 var officeTab='money',dadUnlocked=false,dadUntil=0, PIN_KEY='chase-fly-shop-pin-v1';
 var LOCK_KEY='chase-fly-shop-lockmode-v1', OPEN_KEY='chase-fly-shop-open-v1';
 function lockMode(){try{var v=localStorage.getItem(LOCK_KEY);return (v==='3'||v==='open')?v:'30'}catch(e){return '30'}}
@@ -1521,10 +1541,10 @@ function flyDetailHTML(f){
     '<button class="alt small" onclick="setToMin(\''+f.id+'\')">Set price to the lowest that keeps '+minMargin()+'%</button></div>'+
     '<div class="card stack"><h2 style="margin:0">Costs</h2><div class="row"><span class="muted">Supplies per fly</span><b id="sup-'+f.id+'">'+$(c)+'</b></div>'+
     '<div class="muted">What goes into one fly. Change an amount to see the price and margin move.</div>'+
-    f.recipe.filter(function(r){return mat(r[0])}).map(function(r){var m=mat(r[0]);return '<div class="recipe-line"><span class="nm">'+esc(m.name)+'<br><span class="muted">'+esc(m.cat)+' &middot; '+$(unit(m))+' each</span></span><input aria-label="Amount of '+esc(m.name)+'" type="number" inputmode="decimal" step="any" value="'+r[1]+'" oninput="liveQty(\''+f.id+'\',\''+m.id+'\',this.value)" onchange="setQty(\''+f.id+'\',\''+m.id+'\',this.value)"></div>'}).join('')+
-    '<div class="muted" style="margin-top:6px"><b>Supplies this fly uses</b> (not counted). Tick the ones it needs.</div>'+supplyChecks(f,'live')+
+    f.recipe.filter(function(r){return mat(r[0])&&!mat(r[0]).flat}).map(function(r){var m=mat(r[0]);return '<div class="recipe-line"><span class="nm">'+esc(m.name)+'<br><span class="muted">'+esc(m.cat)+' &middot; '+$(unit(m))+' each</span></span><input aria-label="Amount of '+esc(m.name)+'" type="number" inputmode="decimal" step="any" value="'+r[1]+'" oninput="liveQty(\''+f.id+'\',\''+m.id+'\',this.value)" onchange="setQty(\''+f.id+'\',\''+m.id+'\',this.value)"><button class="alt small" aria-label="Remove '+esc(m.name)+'" onclick="removeFromFly(\''+f.id+'\',\''+m.id+'\')">&times;</button></div>'}).join('')+
+    (f.supplies||[]).filter(function(id){return mat(id)&&mat(id).flat}).map(function(id){var m=mat(id);return '<div class="recipe-line"><span class="nm">'+esc(m.name)+'<br><span class="muted">'+esc(m.cat)+' &middot; '+(supplyUnit(m)?$(supplyUnit(m))+' a fly':'set flies per pack')+'</span></span><button class="alt small" aria-label="Remove '+esc(m.name)+'" onclick="removeFromFly(\''+f.id+'\',\''+m.id+'\')">&times;</button></div>'}).join('')+
     '<div class="recipe-line"><span class="nm">Anything else<br><span class="muted">Optional. Dollars per fly.</span></span><input aria-label="Other cost per fly in dollars" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" value="'+(smallOf(f)?smallOf(f).toFixed(2):'')+'" oninput="liveSmall(\''+f.id+'\',this.value)" onchange="setSmall(\''+f.id+'\',this.value)"></div>'+
-    '<button class="alt small" onclick="flyModal(\''+f.id+'\')">Add or remove materials</button></div>';
+    '<button class="wide" onclick="openPickerDirect(\''+f.id+'\')">+ Add material</button></div>';
   return h;
 }
 function fliesAdminContent(){
