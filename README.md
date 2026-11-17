@@ -78,7 +78,8 @@ You never need to reconnect sync after an update. Reconnect only on a new phone 
 
 - **PIN:** Office is behind a 4-digit PIN stored on each device. If it is forgotten, clear the site's data in the browser settings. When sync is on, the shop is safe in the cloud: reconnect with the setup link.
 - **Confirmations:** destructive actions ask first. Restoring a backup and erasing everything need a typed word. Most actions can be undone once from Office > Settings.
-- **Backups:** use Backup and restore before experimenting.
+- **Delivery countdown:** orders still to tie show "Due in 5 days", "Due tomorrow", "Due today" or "2 days late" with a bar. Green is plenty of time, yellow is due soon (the last 30% of the time), red is late. The promised number of days (7 to start) is set in Office > Flies > Delivery time. The order that has waited longest is listed first.
+- **Backups:** Office > Settings > Backup and restore saves a dated .json file (on iPhone, pick Save to Files in the share sheet). Restore by choosing that file. Copy and paste still works as a fallback. The backup holds the shop data only, not the PIN or the sync connection. Make one before experimenting.
 
 ## Not yet tested on real devices
 
