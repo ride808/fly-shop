@@ -934,23 +934,25 @@ function resetModal(){
 /* ---------- screens ---------- */
 
 /* ---------- Dad's corner (PIN) ---------- */
-var APP_VERSION='2026-11-16.40';
+var APP_VERSION='2026-11-16.41';
 var officeTab='money',dadUnlocked=false,dadUntil=0, PIN_KEY='chase-fly-shop-pin-v1';
 var LOCK_KEY='chase-fly-shop-lockmode-v1', OPEN_KEY='chase-fly-shop-open-v1';
-function lockMode(){try{var v=localStorage.getItem(LOCK_KEY);return (v==='30'||v==='open')?v:'3'}catch(e){return '3'}}
-function lockMs(){var m=lockMode();return m==='30'?1800000:(m==='open'?31536000000:180000)}
+function lockMode(){try{var v=localStorage.getItem(LOCK_KEY);return (v==='3'||v==='open')?v:'30'}catch(e){return '30'}}
+function lockMs(){var m=lockMode();return m==='3'?180000:(m==='open'?31536000000:1800000)}
 function setLockMode(v){
-  if(v!=='30'&&v!=='open')v='3';
+  if(v!=='3'&&v!=='open')v='30';
   try{localStorage.setItem(LOCK_KEY,v);if(v==='open')localStorage.setItem(OPEN_KEY,'1');else localStorage.removeItem(OPEN_KEY)}catch(e){}
   dadUntil=Date.now()+lockMs();render();
 }
+function modalOpen(){var m=document.getElementById('modal');return !!(m&&m.innerHTML)}
+function touchLock(){if(dadUnlocked&&lockMode()!=='open')dadUntil=Date.now()+lockMs()}
 function lockCard(){
   var m=lockMode();
   return '<div class="card stack"><h2 style="margin:0">Office lock</h2><div><label for="lm">Keep the Office open</label><select id="lm" onchange="setLockMode(this.value)">'+
    '<option value="3"'+(m==='3'?' selected':'')+'>3 minutes after I last use it</option>'+
-   '<option value="30"'+(m==='30'?' selected':'')+'>30 minutes after I last use it</option>'+
+   '<option value="30"'+(m==='30'?' selected':'')+'>30 minutes after I last use it (recommended)</option>'+
    '<option value="open"'+(m==='open'?' selected':'')+'>Until I tap Lock</option></select></div>'+
-   '<div class="muted">This is only for this device. On a phone the Office also locks when you switch to another app. Pick &ldquo;Until I tap Lock&rdquo; on a computer only you use.</div></div>';
+   '<div class="muted">This is only for this device. Any tap or typing keeps it open. On a phone the Office also locks when you switch to another app, unless a form is open. Pick &ldquo;Until I tap Lock&rdquo; on a computer only you use.</div></div>';
 }
 function getPin(){try{return localStorage.getItem(PIN_KEY)}catch(e){return null}}
 function pinFields(two){
@@ -1049,7 +1051,7 @@ function delShopModal(id){
 function delShop(id){S.shops=shops().filter(function(s){return s.id!==id});closeModal();commit('Shop removed.')}
 function dadView(){
   if(!dadUnlocked&&lockMode()==='open'&&getPin()){try{if(localStorage.getItem(OPEN_KEY)==='1'){dadUnlocked=true;dadUntil=Date.now()+lockMs()}}catch(e){}}
-  if(dadUnlocked&&Date.now()>dadUntil)dadUnlocked=false;
+  if(dadUnlocked&&Date.now()>dadUntil&&!modalOpen())dadUnlocked=false;
   if(dadUnlocked){dadUntil=Date.now()+lockMs();if(lockMode()==='open'){try{localStorage.setItem(OPEN_KEY,'1')}catch(e){}}
     return '<div class="row"><h2 style="margin:0">Office</h2><button class="alt small" onclick="lockDad()">Lock</button></div>'+'<div class="chips" role="group" aria-label="Office section">'+[['money','Money'],['flies','Flies'],['shops','Shops'],['settings','Settings']].map(function(c){return '<button class="chip" aria-pressed="'+(officeTab===c[0])+'" onclick="officeTab=\''+c[0]+'\';render();window.scrollTo(0,0)">'+c[1]+'</button>'}).join('')+'</div>'+(officeTab==='money'?moneyContent():officeTab==='flies'?fliesAdminContent():officeTab==='shops'?shopsContent():undoCard()+settingsContent())+
       '<button class="alt wide" onclick="pinModal()">Change PIN</button>';
@@ -1085,7 +1087,8 @@ function appCard(){
     '<button class="alt wide" onclick="refreshApp()">Refresh the app</button></div>';
 }
 function lockDad(){dadUnlocked=false;dadUntil=0;try{localStorage.removeItem(OPEN_KEY)}catch(e){}render()}
-document.addEventListener('visibilitychange',function(){if(!document.hidden)return;var coarse=false;try{coarse=!!(window.matchMedia&&window.matchMedia('(pointer:coarse)').matches)}catch(e){}if(coarse&&lockMode()!=='open'){dadUnlocked=false;dadUntil=0}});
+document.addEventListener('visibilitychange',function(){if(!document.hidden)return;var coarse=false;try{coarse=!!(window.matchMedia&&window.matchMedia('(pointer:coarse)').matches)}catch(e){}if(coarse&&lockMode()!=='open'&&!modalOpen()){dadUnlocked=false;dadUntil=0}});
+['click','keydown','input','touchstart'].forEach(function(ev){document.addEventListener(ev,touchLock,true)});
 function pinModal(){
   openModal('<h3>Change PIN</h3>'+pinFields(true)+'<button class="wide" onclick="saveNewPin()">Save new PIN</button><button class="alt wide" onclick="closeModal()">Cancel</button>');
 }
