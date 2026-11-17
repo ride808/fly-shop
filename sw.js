@@ -1,6 +1,6 @@
 // Offline support. Bump VERSION whenever index.html changes so phones pick up the new copy.
-var VERSION = 'fly-shop-v4';
-var SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'];
+var VERSION = 'fly-shop-v5';
+var SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icon-32.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'];
 
 self.addEventListener('install', function (e) {
   e.waitUntil(caches.open(VERSION).then(function (c) { return c.addAll(SHELL); }));
