@@ -71,6 +71,12 @@ label{display:block;font-weight:800;font-size:15px;margin-bottom:4px}
 .bar{height:14px;border-radius:99px;background:var(--line);overflow:hidden}
 .bar i{display:block;height:100%;background:var(--good);border-radius:99px}
 .pin{-webkit-text-security:disc;letter-spacing:.3em}
+button.flyrow{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:16px;padding:10px 12px;min-height:76px;font-weight:400}
+.fthumb{width:56px;height:56px;border-radius:12px;object-fit:cover;flex:none;background:var(--line)}
+.fthumb.ph{display:flex;align-items:center;justify-content:center;color:var(--muted)}.fthumb.ph svg{width:28px;height:28px}
+.fmain{flex:1;min-width:0}.fmain b{display:block;font-size:17px;font-weight:800;overflow-wrap:anywhere}
+.mpill{font-weight:800;border-radius:99px;padding:4px 10px;font-size:14px;flex:none}.mpill.ok{background:var(--good-bg);color:var(--good)}.mpill.low{background:var(--warn-bg);color:var(--warn)}
+.chev{color:var(--muted);font-size:24px;flex:none}
 .btnlink.alt{background:transparent;color:var(--ink);border:2px solid var(--line)}.btnlink.small{min-height:40px;padding:8px 14px;font-size:15px}.shoplinks{display:flex;flex-wrap:wrap;gap:8px}
 .age{display:flex;flex-direction:column;gap:6px}.age .bar{height:10px}.age b{font-size:14px}.age.mid b{color:var(--amber)}.age.mid .bar i{background:var(--amber)}.age.old b{color:var(--warn)}.age.old .bar i{background:var(--warn)}
 .bar.low i{background:var(--warn)}
@@ -653,7 +659,7 @@ function addMaterialInline(fid){
   var have=parseFloat(document.getElementById('nm-have').value);
   var er=document.getElementById('nm-err');
   if(!name||isNaN(cost)||cost<0||!(qty>0)){er.textContent='Add a name, what the pack cost, and how many are in a pack.';er.style.display='block';return}
-  var draft=readFlyDraft();
+  var draft=pickDraft||readFlyDraft();pickDraft=null;pickOrig={};
   var id='X'+(S.nextId++);
   S.materials.push({id:id,cat:cat,name:name,packCost:cost,packQty:qty,stock:isNaN(have)?qty:have});
   draft.qty[id]='1';
@@ -712,11 +718,34 @@ function flyModal(id,draft){
    '<div><label for="f-steps">How to tie it (one step on each line)</label><textarea id="f-steps" rows="7" style="font:inherit;min-height:150px" placeholder="Example:&#10;Put the hook in the vise.&#10;Start the thread behind the bead.">'+esc(stepsV)+'</textarea></div>'+
    '<div><label for="f-link">Link to a video or page (optional)</label><input id="f-link" type="url" inputmode="url" placeholder="https://" value="'+esc(linkV)+'"></div>'+
    (f?'<div class="muted">If you change this recipe, orders that are already tied or paid keep the recipe and cost they were tied with. Orders still waiting to be tied will use the new recipe.</div>':'')+
-   '<div><b>Materials in this fly ('+recIds.length+')</b><div class="muted">This is what goes into ONE fly. Type how many of each. Swipe a material left to remove it, or tap the x.</div></div>'+
-   (recIds.length?recIds.map(function(mid){var m=mat(mid);return '<div class="swipe" data-id="'+m.id+'"><div class="recipe-line frow"><label class="nm" for="rq-'+m.id+'" style="margin:0;font-weight:700">'+esc(m.name)+'<br><span class="muted">'+esc(m.cat)+(m.unit?' &middot; '+esc(m.unit):'')+'</span></label><input id="rq-'+m.id+'" type="number" inputmode="decimal" step="any" placeholder="0" value="'+esc(qtyOf[m.id])+'"><button class="alt small" aria-label="Remove '+esc(m.name)+'" onclick="removeFromRecipe(\''+m.id+'\','+fid+')">&times;</button></div></div>'}).join(''):'<div class="card muted">No materials yet. Add some from your shelf below.</div>')+
-   '<div><b>Add materials from your shelf</b><div class="muted" id="f-count"></div></div>'+
+   '<div id="f-mats"><b>Materials in this fly ('+recIds.length+')</b><div class="muted">This is what goes into ONE fly. Type how many of each. Swipe a material left to remove it, or tap the x.</div></div>'+
+   '<button class="wide" onclick="openPicker('+fid+')">+ Add materials</button>'+
+   (recIds.length?recIds.map(function(mid){var m=mat(mid);return '<div class="swipe" data-id="'+m.id+'"><div class="recipe-line frow"><label class="nm" for="rq-'+m.id+'" style="margin:0;font-weight:700">'+esc(m.name)+'<br><span class="muted">'+esc(m.cat)+(m.unit?' &middot; '+esc(m.unit):'')+'</span></label><input id="rq-'+m.id+'" type="number" inputmode="decimal" step="any" placeholder="0" value="'+esc(qtyOf[m.id])+'"><button class="alt small" aria-label="Remove '+esc(m.name)+'" onclick="removeFromRecipe(\''+m.id+'\','+fid+')">&times;</button></div></div>'}).join(''):'<div class="card muted">No materials yet. Tap Add materials above.</div>')+
+   '<div class="alert" id="f-err" style="display:none"></div>'+
+   '<button class="wide" onclick="saveFly('+fid+')">Save fly</button>'+(f?'<button class="alt wide" onclick="dupFly(\''+f.id+'\')">Duplicate as another size</button><button class="alt wide" onclick="delFlyModal(\''+f.id+'\')">Delete this fly</button>':'')+'<button class="alt wide" onclick="closeModal()">Cancel</button>');
+  var er=document.getElementById('f-err');
+  new MutationObserver(function(){er.style.display=er.textContent?'block':'none'}).observe(er,{childList:true});
+  document.querySelectorAll('.swipe').forEach(function(w){
+    var row=w.firstChild,mid=w.getAttribute('data-id'),x0=null,y0=0,dx=0;
+    w.addEventListener('touchstart',function(e){var t=e.touches[0];x0=t.clientX;y0=t.clientY;dx=0;row.style.transition='none'},{passive:true});
+    w.addEventListener('touchmove',function(e){if(x0===null)return;var t=e.touches[0],mx=t.clientX-x0,my=t.clientY-y0;if(dx===0&&Math.abs(mx)<Math.abs(my)+6)return;dx=Math.min(0,mx);row.style.transform='translateX('+dx+'px)'},{passive:true});
+    w.addEventListener('touchend',function(){if(x0===null)return;x0=null;row.style.transition='transform .15s';if(dx<-90){row.style.transform='translateX(-110%)';removeFromRecipe(mid,id)}else{row.style.transform=''}},{passive:true});
+  });
+}
+var pickFid=null,pickDraft=null,pickOrig={};
+function openPicker(id){
+  pickFid=id||null;pickDraft=readFlyDraft();pickOrig={};
+  Object.keys(pickDraft.qty).forEach(function(k){pickOrig[k]=1});
+  flyCats=[];flyQ='';pickerModal();
+}
+function pickCount(){var n=0;Object.keys(pickDraft.qty).forEach(function(k){if(!pickOrig[k]&&mat(k))n++});return n}
+function pickerModal(){
+  var fid=pickFid?'\''+pickFid+'\'':'null',cats=allCats();
+  openModal('<div class="row"><h3 style="margin:0">Add materials</h3><button class="small" id="pk-done-top" onclick="pickDone()">Done</button></div>'+
+   '<div class="muted" id="pk-count">Tap Add on each material this fly needs, then tap Done.</div>'+
    '<input id="fq" type="search" aria-label="Find a material" placeholder="Find a material" value="'+esc(flyQ)+'" oninput="flyQ=this.value;applyFlyFilter()">'+
    '<div class="chips" id="fchips" role="group" aria-label="Filter by type"></div>'+
+   '<div class="muted" id="f-count"></div>'+
    '<button class="alt wide" id="nm-open" onclick="openNewMat()">+ New material</button>'+
    '<div class="card stack" id="nm-box" style="display:none"><b>Add a new material</b>'+
     '<div><label for="nm-name">Name</label><input id="nm-name" placeholder="Example: Pheasant tail fibers"></div>'+
@@ -727,18 +756,27 @@ function flyModal(id,draft){
     '<div class="alert" id="nm-err" style="display:none"></div>'+
     '<button onclick="addMaterialInline('+fid+')">Add it to this fly</button></div>'+
    '<div id="f-nomatch" style="display:none"></div>'+
-   S.materials.filter(function(m){return recIds.indexOf(m.id)<0}).map(function(m){return '<div class="recipe-line arow" data-cat="'+esc(m.cat)+'" data-name="'+esc((m.name+' '+m.cat).toLowerCase())+'" data-id="'+m.id+'"><div class="nm"><b>'+esc(m.name)+'</b><br><span class="muted">'+esc(m.cat)+'</span></div><button class="small" onclick="addToRecipe(\''+m.id+'\','+fid+')">Add</button></div>'}).join('')+
-   '<div class="alert" id="f-err" style="display:none"></div>'+
-   '<button class="wide" onclick="saveFly('+fid+')">Save fly</button>'+(f?'<button class="alt wide" onclick="dupFly(\''+f.id+'\')">Duplicate as another size</button><button class="alt wide" onclick="delFlyModal(\''+f.id+'\')">Delete this fly</button>':'')+'<button class="alt wide" onclick="closeModal()">Cancel</button>');
-  var er=document.getElementById('f-err');
-  new MutationObserver(function(){er.style.display=er.textContent?'block':'none'}).observe(er,{childList:true});
-  applyFlyFilter();
-  document.querySelectorAll('.swipe').forEach(function(w){
-    var row=w.firstChild,mid=w.getAttribute('data-id'),x0=null,y0=0,dx=0;
-    w.addEventListener('touchstart',function(e){var t=e.touches[0];x0=t.clientX;y0=t.clientY;dx=0;row.style.transition='none'},{passive:true});
-    w.addEventListener('touchmove',function(e){if(x0===null)return;var t=e.touches[0],mx=t.clientX-x0,my=t.clientY-y0;if(dx===0&&Math.abs(mx)<Math.abs(my)+6)return;dx=Math.min(0,mx);row.style.transform='translateX('+dx+'px)'},{passive:true});
-    w.addEventListener('touchend',function(){if(x0===null)return;x0=null;row.style.transition='transform .15s';if(dx<-90){row.style.transform='translateX(-110%)';removeFromRecipe(mid,id)}else{row.style.transform=''}},{passive:true});
-  });
+   S.materials.slice().sort(function(x,y){return (pickOrig[x.id]?1:0)-(pickOrig[y.id]?1:0)}).map(function(m){
+     var inOrig=!!pickOrig[m.id],on=pickDraft.qty[m.id]!==undefined;
+     return '<div class="recipe-line arow" data-cat="'+esc(m.cat)+'" data-name="'+esc((m.name+' '+m.cat).toLowerCase())+'" data-id="'+m.id+'"><div class="nm"><b>'+esc(m.name)+'</b><br><span class="muted">'+esc(m.cat)+'</span></div>'+
+       (inOrig?'<span class="pill paid">In this fly</span>':'<button class="'+(on?'':'alt ')+'small" id="pk-'+m.id+'" aria-pressed="'+on+'" onclick="pickToggle(\''+m.id+'\')">'+(on?'Added &#10003;':'Add')+'</button>')+'</div>';
+   }).join('')+
+   '<button class="wide" onclick="pickDone()">Done</button>');
+  applyFlyFilter();pickNote();
+}
+function pickNote(){var n=pickCount(),el=document.getElementById('pk-count');if(el)el.textContent=n?(n+' added. Tap Done when you have them all.'):'Tap Add on each material this fly needs, then tap Done.'}
+function pickToggle(mid){
+  if(!pickDraft)return;
+  if(pickDraft.qty[mid]===undefined)pickDraft.qty[mid]='1';else delete pickDraft.qty[mid];
+  var on=pickDraft.qty[mid]!==undefined,b=document.getElementById('pk-'+mid);
+  if(b){b.className=(on?'':'alt ')+'small';b.setAttribute('aria-pressed',String(on));b.innerHTML=on?'Added &#10003;':'Add'}
+  pickNote();
+}
+function pickDone(){
+  var d=pickDraft,fid=pickFid;pickDraft=null;pickOrig={};
+  if(!d){closeModal();return}
+  flyModal(fid,d);
+  try{var m=document.getElementById('f-mats');if(m&&m.scrollIntoView)m.scrollIntoView({block:'start'})}catch(e){}
 }
 function openNewMat(pre){
   var b=document.getElementById('nm-box'),o=document.getElementById('nm-open');if(!b)return;
@@ -778,7 +816,7 @@ function applyFlyFilter(){
     if(q&&n===0){nmEl.style.display='block';nmEl.innerHTML='<div class="card stack"><div class="muted">Nothing on your shelf matches &ldquo;'+esc(flyQ.trim())+'&rdquo;.</div><button class="wide" onclick="openNewMat(flyQ.trim())">Add &ldquo;'+esc(flyQ.trim())+'&rdquo; as a new material</button></div>'}
     else{nmEl.style.display='none';nmEl.innerHTML=''}
   }
-  var c=document.getElementById('f-count');if(c)c.textContent=rows.length?('Showing '+n+' of '+rows.length+' materials not in this fly'):'Every material on your shelf is already in this fly.';
+  var c=document.getElementById('f-count');if(c)c.textContent=rows.length?('Showing '+n+' of '+rows.length+' materials'):'No materials on your shelf yet.';
 }
 function openModal(html){document.getElementById('modal').innerHTML='<div class="sheet-bg" onclick="if(event.target===this)closeModal()"><div class="sheet" role="dialog" aria-modal="true">'+html+'</div></div>'
   try{
@@ -934,7 +972,7 @@ function resetModal(){
 /* ---------- screens ---------- */
 
 /* ---------- Dad's corner (PIN) ---------- */
-var APP_VERSION='2026-11-16.41';
+var APP_VERSION='2026-11-16.42';
 var officeTab='money',dadUnlocked=false,dadUntil=0, PIN_KEY='chase-fly-shop-pin-v1';
 var LOCK_KEY='chase-fly-shop-lockmode-v1', OPEN_KEY='chase-fly-shop-open-v1';
 function lockMode(){try{var v=localStorage.getItem(LOCK_KEY);return (v==='3'||v==='open')?v:'30'}catch(e){return '30'}}
@@ -1053,7 +1091,7 @@ function dadView(){
   if(!dadUnlocked&&lockMode()==='open'&&getPin()){try{if(localStorage.getItem(OPEN_KEY)==='1'){dadUnlocked=true;dadUntil=Date.now()+lockMs()}}catch(e){}}
   if(dadUnlocked&&Date.now()>dadUntil&&!modalOpen())dadUnlocked=false;
   if(dadUnlocked){dadUntil=Date.now()+lockMs();if(lockMode()==='open'){try{localStorage.setItem(OPEN_KEY,'1')}catch(e){}}
-    return '<div class="row"><h2 style="margin:0">Office</h2><button class="alt small" onclick="lockDad()">Lock</button></div>'+'<div class="chips" role="group" aria-label="Office section">'+[['money','Money'],['flies','Flies'],['shops','Shops'],['settings','Settings']].map(function(c){return '<button class="chip" aria-pressed="'+(officeTab===c[0])+'" onclick="officeTab=\''+c[0]+'\';render();window.scrollTo(0,0)">'+c[1]+'</button>'}).join('')+'</div>'+(officeTab==='money'?moneyContent():officeTab==='flies'?fliesAdminContent():officeTab==='shops'?shopsContent():undoCard()+settingsContent())+
+    return '<div class="row"><h2 style="margin:0">Office</h2><button class="alt small" onclick="lockDad()">Lock</button></div>'+'<div class="chips" role="group" aria-label="Office section">'+[['money','Money'],['flies','Flies'],['shops','Shops'],['settings','Settings']].map(function(c){return '<button class="chip" aria-pressed="'+(officeTab===c[0])+'" onclick="officeTab=\''+c[0]+'\';officeFlyId=null;render();window.scrollTo(0,0)">'+c[1]+'</button>'}).join('')+'</div>'+(officeTab==='money'?moneyContent():officeTab==='flies'?fliesAdminContent():officeTab==='shops'?shopsContent():undoCard()+settingsContent())+
       '<button class="alt wide" onclick="pinModal()">Change PIN</button>';
   }
   if(!getPin()){
@@ -1290,20 +1328,43 @@ function shelfView(){
   });
   return h;
 }
+var officeFlyId=null;
+function flyThumb(f){
+  var u=f&&f.photo;
+  if(u&&typeof u==='string'&&u.indexOf('data:image/')===0)return '<img class="fthumb" alt="" src="'+u+'">';
+  return '<div class="fthumb ph" aria-hidden="true">'+ICON.flies+'</div>';
+}
+function flyRow(f){
+  var c=flyCost(f),mg=marginOf(f.price,c),ok=mg>=minMargin()-0.0001;
+  return '<button class="flyrow" onclick="openFlyDetail(\''+f.id+'\')" aria-label="'+esc(f.name)+', open details">'+flyThumb(f)+
+    '<span class="fmain"><b>'+esc(f.name)+'</b><span class="muted">Sells '+$(f.price)+' &middot; supplies '+$(c)+(canTie(f)?'':' &middot; learning')+'</span></span>'+
+    '<span class="mpill '+(ok?'ok':'low')+'">'+Math.round(mg)+'%</span><span class="chev" aria-hidden="true">&rsaquo;</span></button>';
+}
+function openFlyDetail(id){officeFlyId=id;render();window.scrollTo(0,0)}
+function closeFlyDetail(){officeFlyId=null;render();window.scrollTo(0,0)}
+function flyDetailHTML(f){
+  var c=flyCost(f);
+  var h='<div class="row"><button class="alt small" onclick="closeFlyDetail()">&lsaquo; All flies</button><button class="small" onclick="flyModal(\''+f.id+'\')">Edit recipe</button></div>'+
+    '<div class="card stack">'+photoImg(f)+'<h2 style="margin:0">'+esc(f.name)+'</h2>'+
+    '<div class="row"><span class="pill '+(canTie(f)?'paid':'')+'">'+(canTie(f)?'I can tie this':'Still learning')+'</span><button class="alt small" onclick="toggleCan(\''+f.id+'\')">'+(canTie(f)?'Move to still learning':'I can tie this now')+'</button></div></div>'+
+    '<div class="card stack"><h2 style="margin:0">Price</h2>'+
+    '<div><label for="pr-'+f.id+'">You sell it for (try different prices, the numbers below change as you type)</label><input id="pr-'+f.id+'" type="number" inputmode="decimal" step="0.05" value="'+f.price.toFixed(2)+'" oninput="playPrice(\''+f.id+'\',this.value)" onchange="setPrice(\''+f.id+'\',this.value)"></div>'+
+    '<div id="pl-'+f.id+'" class="stack">'+playHTML(f,f.price)+'</div>'+
+    '<button class="alt small" onclick="setToMin(\''+f.id+'\')">Set price to the lowest that keeps '+minMargin()+'%</button></div>'+
+    '<div class="card stack"><h2 style="margin:0">Costs</h2><div class="row"><span class="muted">Supplies per fly</span><b id="sup-'+f.id+'">'+$(c)+'</b></div>'+
+    '<div class="muted">What goes into one fly. Change an amount to see the price and margin move.</div>'+
+    f.recipe.filter(function(r){return mat(r[0])}).map(function(r){var m=mat(r[0]);return '<div class="recipe-line"><span class="nm">'+esc(m.name)+'<br><span class="muted">'+esc(m.cat)+' &middot; '+$(unit(m))+' each</span></span><input aria-label="Amount of '+esc(m.name)+'" type="number" inputmode="decimal" step="any" value="'+r[1]+'" oninput="liveQty(\''+f.id+'\',\''+m.id+'\',this.value)" onchange="setQty(\''+f.id+'\',\''+m.id+'\',this.value)"></div>'}).join('')+
+    '<button class="alt small" onclick="flyModal(\''+f.id+'\')">Add or remove materials</button></div>';
+  return h;
+}
 function fliesAdminContent(){
+  if(officeFlyId){var f0=fly(officeFlyId);if(f0&&!f0.deleted)return flyDetailHTML(f0);officeFlyId=null}
   var h='<button class="wide" onclick="flyModal(null)">+ New fly</button><button class="alt wide" onclick="menuModal()">Show a shop my menu</button>'+wishBtn()+
-    '<div class="chips" role="group" aria-label="Show flies">'+[['all','All flies'],['can','I can tie'],['learning','Still learning']].map(function(c){return '<button class="chip" aria-pressed="'+(flyShow===c[0])+'" onclick="flyShow=\''+c[0]+'\';render()">'+c[1]+'</button>'}).join('')+'</div>';
-  liveFlies().filter(function(f){return flyShow==='all'||(flyShow==='can'?canTie(f):!canTie(f))}).forEach(function(f){
-    var c=flyCost(f),p=f.price-c;
-    h+='<div class="card stack">'+photoImg(f)+'<div class="row"><h2 style="margin:0">'+esc(f.name)+'</h2><button class="alt small" onclick="flyModal(\''+f.id+'\')">Edit recipe</button></div>'+
-      '<div class="row"><span class="pill '+(canTie(f)?'paid':'')+'">'+(canTie(f)?'I can tie this':'Still learning')+'</span><button class="alt small" onclick="toggleCan(\''+f.id+'\')">'+(canTie(f)?'Move to still learning':'I can tie this now')+'</button></div>'+
-      '<div class="row"><span class="muted">Supplies per fly</span><b id="sup-'+f.id+'">'+$(c)+'</b></div>'+
-      '<div><label for="pr-'+f.id+'">You sell it for (try different prices, the numbers below change as you type)</label><input id="pr-'+f.id+'" type="number" inputmode="decimal" step="0.05" value="'+f.price.toFixed(2)+'" oninput="playPrice(\''+f.id+'\',this.value)" onchange="setPrice(\''+f.id+'\',this.value)"></div>'+
-      '<div id="pl-'+f.id+'" class="stack">'+playHTML(f,f.price)+'</div>'+
-      '<button class="alt small" onclick="setToMin(\''+f.id+'\')">Set price to the lowest that keeps '+minMargin()+'%</button>'+
-      '<div class="muted"><b>Recipe for one fly</b></div>'+
-      f.recipe.map(function(r){var m=mat(r[0]);return '<div class="recipe-line"><span class="nm">'+esc(m.name)+'<br><span class="muted">'+$(unit(m)*r[1])+'</span></span><input aria-label="Amount of '+esc(m.name)+'" type="number" inputmode="decimal" step="any" value="'+r[1]+'" oninput="liveQty(\''+f.id+'\',\''+m.id+'\',this.value)" onchange="setQty(\''+f.id+'\',\''+m.id+'\',this.value)"></div>'}).join('')+'</div>';
-  });
+    '<div class="chips" role="group" aria-label="Show flies">'+[['all','All flies'],['can','I can tie'],['learning','Still learning']].map(function(c){return '<button class="chip" aria-pressed="'+(flyShow===c[0])+'" onclick="flyShow=\''+c[0]+'\';render()">'+c[1]+'</button>'}).join('')+'</div>'+
+    '<div class="muted">Tap a fly to see its costs and try different prices. The pill is the share of each sale you keep.</div>';
+  var list=liveFlies().filter(function(f){return flyShow==='all'||(flyShow==='can'?canTie(f):!canTie(f))});
+  if(!list.length)h+='<div class="card muted">No flies here yet.</div>';
+  list.forEach(function(f){h+=flyRow(f)});
   h+='<div class="card stack"><h2 style="margin:0">Minimum margin</h2><div><label for="mm">Smallest share of each sale you want to keep (%)</label><input id="mm" type="number" inputmode="numeric" min="0" max="90" value="'+minMargin()+'" oninput="liveMargin(this.value)" onchange="setMinMargin(this.value)"></div>'+
      '<div class="muted">Margin is what is left of the price after supplies. At 50%, you charge at least double the supply cost. This only warns you. It never stops you from entering a price.</div></div>';
   h+='<div class="card stack"><h2 style="margin:0">Delivery time</h2><div><label for="ld">Days you promise a shop to deliver an order</label><input id="ld" type="number" inputmode="numeric" min="1" max="60" value="'+leadDays()+'" onchange="setLeadDays(this.value)"></div>'+
@@ -1348,7 +1409,7 @@ function render(){
   if(tab==='shelf'){wireShelfChips();applyShelfFilter()}
   document.getElementById('nav').innerHTML=TABS.map(function(t){return '<button onclick="go(\''+t[0]+'\')"'+(t[0]===tab?' aria-current="page"':'')+'>'+ICON[t[0]]+t[1]+'</button>'}).join('');
 }
-function go(t){tab=t;showPaid=false;toast='';render();window.scrollTo(0,0)}
+function go(t){tab=t;showPaid=false;toast='';officeFlyId=null;render();window.scrollTo(0,0)}
 
 /* ---------- sync (Firebase Realtime Database over plain REST) ---------- */
 var SYNC_KEY='chase-fly-shop-sync-v1', sync=null, busy=false, pushTimer=null, pollStarted=false;
