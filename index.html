@@ -697,8 +697,7 @@ function flyModal(id,draft){
    '<div><b>Add materials from your shelf</b><div class="muted" id="f-count"></div></div>'+
    '<input id="fq" type="search" aria-label="Find a material" placeholder="Find a material" value="'+esc(flyQ)+'" oninput="flyQ=this.value;applyFlyFilter()">'+
    '<div class="chips" id="fchips" role="group" aria-label="Filter by type"></div>'+
-   S.materials.filter(function(m){return recIds.indexOf(m.id)<0}).map(function(m){return '<div class="recipe-line arow" data-cat="'+esc(m.cat)+'" data-name="'+esc((m.name+' '+m.cat).toLowerCase())+'" data-id="'+m.id+'"><div class="nm"><b>'+esc(m.name)+'</b><br><span class="muted">'+esc(m.cat)+'</span></div><button class="small" onclick="addToRecipe(\''+m.id+'\','+fid+')">Add</button></div>'}).join('')+
-   '<button class="alt wide" id="nm-open" onclick="document.getElementById(\'nm-box\').style.display=\'flex\';this.style.display=\'none\'">+ New material</button>'+
+   '<button class="alt wide" id="nm-open" onclick="openNewMat()">+ New material</button>'+
    '<div class="card stack" id="nm-box" style="display:none"><b>Add a new material</b>'+
     '<div><label for="nm-name">Name</label><input id="nm-name" placeholder="Example: Pheasant tail fibers"></div>'+
     '<div><label for="nm-cat">Type</label><input id="nm-cat" list="nm-cats" placeholder="Hook, bead, thread..."><datalist id="nm-cats">'+cats.map(function(c){return '<option value="'+esc(c)+'">'}).join('')+'</datalist></div>'+
@@ -707,8 +706,10 @@ function flyModal(id,draft){
     '<div><label for="nm-have">How many do you have now?</label><input id="nm-have" type="number" inputmode="decimal" step="any" placeholder="Leave blank for a full pack"></div>'+
     '<div class="alert" id="nm-err" style="display:none"></div>'+
     '<button onclick="addMaterialInline('+fid+')">Add it to this fly</button></div>'+
+   '<div id="f-nomatch" style="display:none"></div>'+
+   S.materials.filter(function(m){return recIds.indexOf(m.id)<0}).map(function(m){return '<div class="recipe-line arow" data-cat="'+esc(m.cat)+'" data-name="'+esc((m.name+' '+m.cat).toLowerCase())+'" data-id="'+m.id+'"><div class="nm"><b>'+esc(m.name)+'</b><br><span class="muted">'+esc(m.cat)+'</span></div><button class="small" onclick="addToRecipe(\''+m.id+'\','+fid+')">Add</button></div>'}).join('')+
    '<div class="alert" id="f-err" style="display:none"></div>'+
-   '<button class="wide" onclick="saveFly('+fid+')">Save fly</button>'+(f?'<button class="alt wide" onclick="delFlyModal(\''+f.id+'\')">Delete this fly</button>':'')+'<button class="alt wide" onclick="closeModal()">Cancel</button>');
+   '<button class="wide" onclick="saveFly('+fid+')">Save fly</button>'+(f?'<button class="alt wide" onclick="dupFly(\''+f.id+'\')">Duplicate as another size</button><button class="alt wide" onclick="delFlyModal(\''+f.id+'\')">Delete this fly</button>':'')+'<button class="alt wide" onclick="closeModal()">Cancel</button>');
   var er=document.getElementById('f-err');
   new MutationObserver(function(){er.style.display=er.textContent?'block':'none'}).observe(er,{childList:true});
   applyFlyFilter();
@@ -719,8 +720,23 @@ function flyModal(id,draft){
     w.addEventListener('touchend',function(){if(x0===null)return;x0=null;row.style.transition='transform .15s';if(dx<-90){row.style.transform='translateX(-110%)';removeFromRecipe(mid,id)}else{row.style.transform=''}},{passive:true});
   });
 }
+function openNewMat(pre){
+  var b=document.getElementById('nm-box'),o=document.getElementById('nm-open');if(!b)return;
+  b.style.display='flex';if(o)o.style.display='none';
+  var n=document.getElementById('nm-name');if(n&&pre&&!n.value)n.value=pre;
+  try{b.scrollIntoView({block:'center'})}catch(e){}
+  var c=document.getElementById('nm-cat');
+  if(n&&!n.value)n.focus();else if(c&&!c.value)c.focus();
+}
 function flyTop(){var el=document.querySelector?document.querySelector('.sheet'):null;return el?el.scrollTop:0}
 function flyReopen(id,draft,top){flyModal(id,draft);var el=document.querySelector?document.querySelector('.sheet'):null;if(el&&top)el.scrollTop=top}
+function dupFly(id){
+  var f=fly(id);if(!f)return;
+  var q={};f.recipe.forEach(function(r){if(mat(r[0]))q[r[0]]=String(r[1])});
+  var nm=f.name+' (copy)';
+  flyCats=[];flyQ='';pendWish=null;pendPhoto=f.photo||null;
+  flyModal(null,{name:nm,price:f.price.toFixed(2),can:canTie(f)?'yes':'no',qty:q,steps:(f.steps||[]).join('\n'),link:f.link||''});
+}
 function removeFromRecipe(mid,id){var d=readFlyDraft(),t=flyTop();delete d.qty[mid];flyReopen(id,d,t)}
 function addToRecipe(mid,id){var d=readFlyDraft(),t=flyTop();if(d.qty[mid]===undefined)d.qty[mid]='1';flyReopen(id,d,t)}
 function toggleCat(list,c){var i=list.indexOf(c);if(i>=0)list.splice(i,1);else list.push(c)}
@@ -737,6 +753,11 @@ function applyFlyFilter(){
     var ok=(!flyCats.length||flyCats.indexOf(r.getAttribute('data-cat'))>=0)&&(!q||r.getAttribute('data-name').indexOf(q)>=0);
     r.style.display=ok?'':'none';if(ok)n++;
   });
+  var nmEl=document.getElementById('f-nomatch');
+  if(nmEl){
+    if(q&&n===0){nmEl.style.display='block';nmEl.innerHTML='<div class="card stack"><div class="muted">Nothing on your shelf matches &ldquo;'+esc(flyQ.trim())+'&rdquo;.</div><button class="wide" onclick="openNewMat(flyQ.trim())">Add &ldquo;'+esc(flyQ.trim())+'&rdquo; as a new material</button></div>'}
+    else{nmEl.style.display='none';nmEl.innerHTML=''}
+  }
   var c=document.getElementById('f-count');if(c)c.textContent=rows.length?('Showing '+n+' of '+rows.length+' materials not in this fly'):'Every material on your shelf is already in this fly.';
 }
 function openModal(html){document.getElementById('modal').innerHTML='<div class="sheet-bg" onclick="if(event.target===this)closeModal()"><div class="sheet" role="dialog" aria-modal="true">'+html+'</div></div>'}
@@ -848,7 +869,7 @@ function resetModal(){
 /* ---------- screens ---------- */
 
 /* ---------- Dad's corner (PIN) ---------- */
-var APP_VERSION='2026-11-16.29';
+var APP_VERSION='2026-11-16.30';
 var officeTab='money',dadUnlocked=false,dadUntil=0, PIN_KEY='chase-fly-shop-pin-v1';
 function getPin(){try{return localStorage.getItem(PIN_KEY)}catch(e){return null}}
 function pinFields(two){
