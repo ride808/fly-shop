@@ -488,7 +488,7 @@ function recipeModal(id){
   var f=fly(id);if(!f)return;
   var rows=f.recipe.map(function(r){var m=mat(r[0]);if(!m)return '';
     return '<tr><td>'+esc(m.name)+'<div class="muted">'+esc(m.cat)+'</div></td><td><b>'+(Math.round(r[1]*100)/100)+'</b>'+(m.unit?' <span class="muted">'+esc(m.unit)+'</span>':'')+'</td><td class="muted">'+(Math.round(r[1]*12*100)/100)+'</td></tr>'}).join('')+
-    (f.supplies||[]).filter(function(id){return mat(id)&&mat(id).flat}).map(function(id){var m=mat(id);return '<tr><td>'+esc(m.name)+'<div class="muted">'+esc(m.cat)+'</div></td><td colspan="2" class="muted">a little</td></tr>'}).join('');
+    (f.supplies||[]).filter(function(id){return mat(id)&&mat(id).flat}).map(function(id){var m=mat(id);return '<tr><td colspan="3">'+esc(m.name)+'<div class="muted">'+esc(m.cat)+'</div></td></tr>'}).join('');
   openModal('<h3>'+esc(f.name)+'</h3>'+photoImg(f)+
    '<div class="card"><table><tr><td class="muted">Material</td><td class="muted">One fly</td><td class="muted">A dozen</td></tr>'+rows+'</table></div>'+
    ((f.steps&&f.steps.length)?'<div><b>How to tie it</b><div class="muted">Tap a step when you finish it.</div></div><ol class="steps">'+f.steps.map(function(t){return '<li onclick="this.classList.toggle(\'done\')">'+esc(t)+'</li>'}).join('')+'</ol>':'<div class="muted">No tying steps yet. Add them in the Office, under Flies.</div>')+
@@ -1138,7 +1138,7 @@ function resetModal(){
 /* ---------- screens ---------- */
 
 /* ---------- Dad's corner (PIN) ---------- */
-var APP_VERSION='2026-11-16.51';
+var APP_VERSION='2026-11-16.52';
 var officeTab='money',dadUnlocked=false,dadUntil=0, PIN_KEY='chase-fly-shop-pin-v1';
 var LOCK_KEY='chase-fly-shop-lockmode-v1', OPEN_KEY='chase-fly-shop-open-v1';
 function lockMode(){try{var v=localStorage.getItem(LOCK_KEY);return (v==='3'||v==='open')?v:'30'}catch(e){return '30'}}
