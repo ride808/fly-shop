@@ -11,7 +11,7 @@ A phone-first shop manager for Chase's hand-tied flies. It tracks orders, tying 
 - **Tying Materials:** what is in stock, searchable, with type filters. Count it, add a new material, and "Bought a pack".
 - **Flies:** the fly menu with photos and prices, and a **Fly wishlist** of flies Chase wants to learn (with notes and a link). "Make it a recipe" turns an idea into a new fly and removes it from the wishlist when saved. "See recipe" shows the materials per fly and per dozen, numbered tying steps Chase can tap to check off, and a link to a video or page.
 
-**Office** (PIN protected, locks again when you leave the tab):
+**Office** (PIN protected. Stays open for 3 minutes after you last look at it, so you can hop between tabs. Locks right away if the app is closed or put in the background, or when you tap Lock):
 
 - **Money:** Shop pays you (all together), Restock (money for supplies) and Your money, plus "I paid for supplies" and a "What to buy" list for low or short materials. Each paid order shows what it kept.
 - **Flies:** the wishlist button, plus add or edit flies and their recipes (swipe a material to remove it, add more from the shelf, photo, tying steps, link), set prices, see what a price keeps in real time, and the minimum margin warning.

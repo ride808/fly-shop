@@ -848,8 +848,8 @@ function resetModal(){
 /* ---------- screens ---------- */
 
 /* ---------- Dad's corner (PIN) ---------- */
-var APP_VERSION='2026-11-16.27';
-var officeTab='money',dadUnlocked=false, PIN_KEY='chase-fly-shop-pin-v1';
+var APP_VERSION='2026-11-16.29';
+var officeTab='money',dadUnlocked=false,dadUntil=0, PIN_KEY='chase-fly-shop-pin-v1';
 function getPin(){try{return localStorage.getItem(PIN_KEY)}catch(e){return null}}
 function pinFields(two){
   return '<div><label for="pin1">'+(two?'New PIN (4 digits)':'PIN')+'</label><input id="pin1" type="password" inputmode="numeric" maxlength="4" autocomplete="off"></div>'+
@@ -858,7 +858,8 @@ function pinFields(two){
 }
 function pinErr(m){var e=document.getElementById('pin-err');if(e){e.textContent=m;e.style.display='block'}}
 function dadView(){
-  if(dadUnlocked){
+  if(dadUnlocked&&Date.now()>dadUntil)dadUnlocked=false;
+  if(dadUnlocked){dadUntil=Date.now()+180000;
     return '<div class="row"><h2 style="margin:0">Office</h2><button class="alt small" onclick="lockDad()">Lock</button></div>'+'<div class="chips" role="group" aria-label="Office section">'+[['money','Money'],['flies','Flies'],['settings','Settings']].map(function(c){return '<button class="chip" aria-pressed="'+(officeTab===c[0])+'" onclick="officeTab=\''+c[0]+'\';render();window.scrollTo(0,0)">'+c[1]+'</button>'}).join('')+'</div>'+(officeTab==='money'?moneyContent():officeTab==='flies'?fliesAdminContent():undoCard()+settingsContent())+
       '<button class="alt wide" onclick="pinModal()">Change PIN</button>';
   }
@@ -875,10 +876,10 @@ function setPin(){
   if(!/^\d{4}$/.test(a)){pinErr('Use exactly 4 numbers.');return}
   if(a!==b){pinErr('The two PINs do not match.');return}
   try{localStorage.setItem(PIN_KEY,a)}catch(e){}
-  dadUnlocked=true;render();
+  dadUnlocked=true;dadUntil=Date.now()+180000;render();
 }
 function tryPin(){
-  if(document.getElementById('pin1').value===getPin()){dadUnlocked=true;render()}
+  if(document.getElementById('pin1').value===getPin()){dadUnlocked=true;dadUntil=Date.now()+180000;render()}
   else{pinErr('That PIN did not match.')}
 }
 function refreshApp(){
@@ -892,7 +893,8 @@ function appCard(){
   return '<div class="card stack"><h2 style="margin:0">App version</h2><div class="muted">Version '+APP_VERSION+'. If something looks out of date, refresh the app. Your orders, money, and settings are not touched.</div>'+
     '<button class="alt wide" onclick="refreshApp()">Refresh the app</button></div>';
 }
-function lockDad(){dadUnlocked=false;render()}
+function lockDad(){dadUnlocked=false;dadUntil=0;render()}
+document.addEventListener('visibilitychange',function(){if(document.hidden){dadUnlocked=false;dadUntil=0}});
 function pinModal(){
   openModal('<h3>Change PIN</h3>'+pinFields(true)+'<button class="wide" onclick="saveNewPin()">Save new PIN</button><button class="alt wide" onclick="closeModal()">Cancel</button>');
 }
@@ -997,7 +999,7 @@ function homeView(){
   var low=S.materials.filter(function(m){return m.stock<=m.packQty*0.2&&shorts.indexOf(m)<0});
   var ns=nextStep();
   var h='<div class="card stack" style="border:2px solid var(--accent)"><div class="muted" style="font-weight:800;text-transform:uppercase;letter-spacing:.4px;font-size:13px">Do this next</div><div class="big" style="font-size:24px">'+esc(ns.t)+'</div><div>'+esc(ns.b)+'</div><button onclick="'+ns.act.replace(/"/g,'&quot;')+'">'+esc(ns.btn)+'</button></div>';
-  h+='<button class="alt wide" onclick="menuModal()">Show a shop my menu</button>'+payLinkBtn('alt wide');
+  h+='<button class="alt wide" onclick="menuModal()">Show a shop my menu</button>'+payLinkBtn('wide');
   h+='<div class="card stack"><div class="row"><span class="muted">Flies tied so far</span><b>'+fliesTied()+'</b></div>'+
      '<div class="row"><span class="muted">Orders to tie</span><b>'+openN+'</b></div>'+
      '<div class="row"><span class="muted">Waiting to get paid</span><b>'+tiedN+'</b></div></div>';
@@ -1053,6 +1055,7 @@ function moneyContent(){
 }
 function ordersView(){
   var h='<button class="wide" onclick="newOrderModal()">+ New order</button>';
+  h+=payLink()?payLinkBtn('wide'):'<div class="card muted">To let a shop pay you, add your Greenlight link in Office &rarr; Settings.</div>';
   var order={open:0,tied:1,paid:2};
   var list=S.orders.slice().sort(function(a,b){return order[a.status]-order[b.status]});
   if(!list.length)h+='<div class="card muted">No orders yet.</div>';
@@ -1066,7 +1069,7 @@ function ordersView(){
        '<div class="muted">'+esc(o.shop)+' &middot; '+esc(o.date)+'</div>';
     if(o.status==='paid'){h+='<div class="row"><span class="muted">Paid</span><b>'+$(o.paid)+'</b></div>'}
     else{h+='<div class="row"><span class="muted">Price each</span><b>'+$(orderPrice(o))+'</b></div><div class="row"><span class="muted">Should earn</span><b>'+$(est)+'</b></div>'+(dw?'<div class="alert">'+esc(dw)+'</div>':'')}
-    if(o.status==='open')h+='<button onclick="tieOrder(\''+o.id+'\')">I tied them</button>';
+    if(o.status==='open')h+='<button onclick="tieOrder(\''+o.id+'\')">I tied them</button>'+payLinkBtn('alt small');
     if(o.status==='tied')h+='<button onclick="payModal(\''+o.id+'\')">Got paid</button>'+payLinkBtn('alt small');
     if(o.status==='paid')h+='<button class="alt small" onclick="fixPayModal(\''+o.id+'\')">Fix this payment</button>';
     if(o.status!=='paid')h+='<button class="alt small" onclick="orderModal(\''+o.id+'\')">Edit order</button>';
@@ -1149,7 +1152,7 @@ function render(){
   if(tab==='shelf'){wireShelfChips();applyShelfFilter()}
   document.getElementById('nav').innerHTML=TABS.map(function(t){return '<button onclick="go(\''+t[0]+'\')"'+(t[0]===tab?' aria-current="page"':'')+'>'+ICON[t[0]]+t[1]+'</button>'}).join('');
 }
-function go(t){tab=t;showPaid=false;toast='';dadUnlocked=false;render();window.scrollTo(0,0)}
+function go(t){tab=t;showPaid=false;toast='';render();window.scrollTo(0,0)}
 
 /* ---------- sync (Firebase Realtime Database over plain REST) ---------- */
 var SYNC_KEY='chase-fly-shop-sync-v1', sync=null, busy=false, pushTimer=null, pollStarted=false;
